@@ -49,7 +49,7 @@
   }
 
   .header-drawer-handle {
-    position: absolute; bottom: -20px; left: 50%;
+    position: fixed; top: var(--header-h, 52px); left: 50%;
     transform: translateX(-50%);
     width: 48px; height: 20px;
     background: var(--surface);
@@ -58,7 +58,7 @@
     border-top: none;
     cursor: pointer; display: flex;
     align-items: center; justify-content: center;
-    opacity: 0.5; transition: opacity 0.2s;
+    opacity: 0.5; transition: opacity 0.2s, top 0.3s ease;
     z-index: 31;
   }
 
@@ -69,6 +69,10 @@
     width: 24px; height: 3px;
     background: rgba(255,255,255,0.3);
     border-radius: 2px;
+  }
+
+  body.header-hidden .header-drawer-handle {
+    top: 0;
   }
 
   body.header-hidden .header-drawer-handle::after {
@@ -153,6 +157,42 @@
 
   .header-card-actions:empty { display: none; }
 
+  /* ── Pomodoro Timer ── */
+  .pomodoro {
+    display: flex; align-items: center; gap: 4px;
+    margin-right: 8px;
+  }
+
+  .pomo-display {
+    font-size: 0.85rem; font-family: 'SF Mono', 'Menlo', monospace;
+    font-variant-numeric: tabular-nums; color: var(--text-muted);
+    cursor: pointer; min-width: 42px; text-align: center;
+    user-select: none;
+  }
+
+  .pomo-display.running { color: var(--accent); font-weight: 600; }
+
+  .pomo-display.done {
+    color: var(--accent);
+    animation: pomoPulse 0.8s ease-in-out infinite;
+  }
+
+  @keyframes pomoPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .pomo-btn {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; color: var(--text-muted);
+    font-size: 0.7rem; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .pomo-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
   .header-action {
     background: none;
     border: 1px solid rgba(255,255,255,0.1);
@@ -185,6 +225,81 @@
 
   .iframe-container iframe {
     width: 100%; height: 100%; border: none; display: block;
+  }
+
+  /* ── YouTube playlist layout ── */
+  .yt-layout {
+    flex: 1; display: flex; background: #0f0f0f; overflow: hidden;
+    position: relative;
+  }
+
+  .yt-player-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #000;
+  }
+
+  .yt-player-wrap iframe {
+    width: 100%; height: 100%; border: none;
+  }
+
+  .yt-playlist-panel {
+    width: 320px; background: var(--surface);
+    border-left: 1px solid rgba(255,255,255,0.06);
+    overflow-y: auto; display: flex; flex-direction: column;
+    transition: width 0.25s ease, opacity 0.25s ease;
+  }
+
+  .yt-playlist-panel.collapsed {
+    width: 0; overflow: hidden; opacity: 0; border-left: none;
+  }
+
+  .yt-playlist-header {
+    padding: 16px; font-size: 0.85rem; font-weight: 600;
+    color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+    white-space: nowrap;
+  }
+
+  .yt-toggle-btn {
+    background: none; border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-muted); cursor: pointer; border-radius: 4px;
+    padding: 2px 8px; font-size: 0.75rem; transition: color 0.15s;
+  }
+
+  .yt-toggle-btn:hover { color: var(--text); }
+
+  .yt-toggle-expand {
+    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    background: var(--surface); border: 1px solid rgba(255,255,255,0.1);
+    border-right: none; color: var(--text-muted); cursor: pointer;
+    border-radius: 4px 0 0 4px; padding: 8px 4px; font-size: 0.8rem;
+    display: none; z-index: 5;
+  }
+
+  .yt-toggle-expand:hover { color: var(--text); }
+
+  .yt-layout.playlist-collapsed .yt-toggle-expand { display: block; }
+
+  .yt-playlist-item {
+    padding: 10px 16px; cursor: pointer; display: flex;
+    align-items: center; gap: 10px; font-size: 0.82rem;
+    color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.03);
+    transition: background 0.15s;
+  }
+
+  .yt-playlist-item:hover { background: rgba(255,255,255,0.05); }
+  .yt-playlist-item.active { background: rgba(233,69,96,0.15); color: var(--text); }
+
+  .yt-playlist-item .yt-idx {
+    flex-shrink: 0; width: 24px; text-align: right; opacity: 0.5;
+  }
+
+  .yt-playlist-item .yt-title { flex: 1; line-height: 1.3; }
+
+  @media (max-width: 600px) {
+    .yt-layout { flex-direction: column; }
+    .yt-player-wrap { min-height: 240px; }
+    .yt-playlist-panel { width: 100%; max-height: 40vh; border-left: none; border-top: 1px solid rgba(255,255,255,0.06); }
   }
 
   /* Nudge bar — only shown when page is blocked */
@@ -359,6 +474,39 @@
   .empty-state .big-icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.5; }
   .empty-state p { font-size: 1.1rem; margin-bottom: 24px; }
 
+  /* ── Notes Drawer (left side) ── */
+  .notes-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 88; opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+
+  .notes-overlay.open { opacity: 1; pointer-events: all; }
+
+  .notes-drawer {
+    position: fixed; top: 0; left: 0;
+    width: var(--sidebar-width); height: 100vh;
+    background: var(--surface); z-index: 89;
+    display: flex; flex-direction: column;
+    transform: translateX(-100%); transition: transform 0.3s ease;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .notes-drawer.open { transform: translateX(0); }
+
+  .notes-drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .notes-drawer-header h2 { font-size: 1rem; font-weight: 600; }
+
+  #notesEditor {
+    flex: 1; background: transparent; color: var(--text);
+    border: none; outline: none; resize: none;
+    padding: 16px 20px; font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 0.85rem; line-height: 1.6;
+  }
+
   /* ── Sidebar ── */
   .sidebar-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -459,6 +607,84 @@
   .todo-item .todo-item-tags { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
   .todo-item .todo-item-tags .tag { font-size: 0.6rem; padding: 1px 6px; }
   .todo-item.done label { text-decoration: line-through; color: var(--text-muted); }
+  .todo-item.dragging { opacity: 0.3; }
+  .todo-item.drag-over { border-top: 2px solid var(--accent); }
+
+  .todo-item-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+  .todo-playlist-parent { cursor: pointer; }
+  .playlist-expand-arrow {
+    font-size: 0.55rem; transition: transform 0.2s;
+    flex-shrink: 0; margin-right: 4px; opacity: 0.5;
+  }
+  .playlist-expand-arrow.expanded { transform: rotate(90deg); }
+
+  .todo-playlist-child {
+    padding-left: 36px; margin-left: 0;
+    border-left: 2px solid var(--accent);
+  }
+  .todo-playlist-child.done label { text-decoration: line-through; opacity: 0.5; }
+
+  .yt-playlist-item.watched { opacity: 0.5; }
+  .yt-playlist-item.watched .yt-title { text-decoration: line-through; }
+
+  /* ── Study Plan Card ── */
+  .sp-progress {
+    font-size: 0.8rem; color: var(--text-muted);
+    margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sp-phase {
+    font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--accent);
+    margin: 24px 0 12px; padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sp-phase:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+
+  .sp-exercise {
+    margin-bottom: 16px; padding: 14px;
+    background: rgba(255,255,255,0.02); border-radius: 8px;
+    border-left: 3px solid rgba(255,255,255,0.1);
+    transition: opacity 0.2s;
+  }
+
+  .sp-exercise.done {
+    opacity: 0.45; border-left-color: var(--accent);
+  }
+
+  .sp-exercise-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+
+  .sp-exercise-header input[type="checkbox"] {
+    width: 16px; height: 16px; flex-shrink: 0;
+    accent-color: var(--accent);
+  }
+
+  .sp-exercise-title {
+    flex: 1; font-weight: 600; font-size: 0.9rem;
+  }
+
+  .sp-exercise.done .sp-exercise-title { text-decoration: line-through; }
+
+  .sp-time {
+    font-size: 0.72rem; color: var(--text-muted);
+    background: rgba(255,255,255,0.05); padding: 2px 8px;
+    border-radius: 4px; flex-shrink: 0;
+  }
+
+  .sp-exercise-body { margin-left: 26px; }
+  .sp-exercise-body p { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; margin: 0 0 8px; }
+  .sp-sources { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+  .sp-links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sp-links a {
+    font-size: 0.75rem; color: var(--accent); text-decoration: none;
+    background: rgba(233,69,96,0.08); padding: 2px 8px; border-radius: 4px;
+  }
+  .sp-links a:hover { background: rgba(233,69,96,0.15); }
 
   .todo-item .todo-actions {
     display: flex; gap: 2px; flex-shrink: 0;
@@ -479,7 +705,7 @@
     padding: 40px 0; font-size: 0.85rem;
   }
 
-  /* ── Bookmarks Panel ── */
+  /* ── Archive Panel ── */
   .bookmarks-list { flex: 1; overflow-y: auto; padding: 8px 20px; }
 
   .bm-folder { margin-bottom: 4px; }
@@ -636,6 +862,7 @@
     .task-view { padding: 20px 16px; flex-direction: column; }
     .card-container { max-width: 100%; width: 100%; }
     .sidebar { width: 100%; }
+    .notes-drawer { width: 100%; }
     .keyboard-hints { display: none; }
     .dots-row { max-width: 160px; }
     .blocked-card { margin: 20px 16px; max-width: 100%; }
@@ -663,12 +890,17 @@
     <div class="header-card-actions" id="headerCardActions"></div>
   </div>
   <div class="header-controls">
+    <div class="pomodoro" id="pomodoro">
+      <span class="pomo-display" id="pomoDisplay" onclick="resetPomodoro()" title="Click to reset">25:00</span>
+      <button class="pomo-btn" id="pomoStartBtn" onclick="togglePomodoro()" title="Start timer">&#9654;</button>
+    </div>
     <button class="icon-btn" id="addBtn" title="Add card (N)">+</button>
-    <button class="icon-btn" id="bmBtn" title="Bookmarks (B)" style="font-size:0.95rem;">&#9733;</button>
+    <button class="icon-btn" id="bmBtn" title="Archive (B)" style="font-size:0.95rem;">&#9733;</button>
     <button class="icon-btn" id="todoBtn" title="To-do list (T)">&#9776;</button>
   </div>
-  <div class="header-drawer-handle" id="headerHandle" title="Toggle header"></div>
+
 </header>
+<div class="header-drawer-handle" id="headerHandle" title="Toggle header (Shift+H)"></div>
 
 <div class="stack-filter-bar" id="stackFilterBar" style="display:none;">
   Filtering: <span id="stackFilterTag"></span>
@@ -679,7 +911,36 @@
 
 <input type="file" id="importFile" accept=".json" style="display:none;" />
 
+<!-- ── Study Plan Import Modal ── -->
+<div class="modal-overlay" id="studyPlanOverlay">
+  <div class="modal">
+    <h2>Import Claude Study Plan</h2>
+    <div class="form-group">
+      <label>Paste study plan JSON from Claude</label>
+      <textarea id="studyPlanInput" rows="10" style="font-family:'SF Mono','Menlo',monospace; font-size:0.78rem;"></textarea>
+    </div>
+    <div id="studyPlanError" style="color:var(--accent); font-size:0.8rem; margin-bottom:12px; display:none;"></div>
+    <div class="form-group">
+      <label>Tags (optional)</label>
+      <input type="text" id="studyPlanTags" placeholder="#study #learning" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeStudyPlanImport()">Cancel</button>
+      <button class="btn btn-primary" onclick="importStudyPlan()">Import</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Sidebar ── -->
+<div class="notes-overlay" id="notesOverlay"></div>
+<div class="notes-drawer" id="notesDrawer">
+  <div class="notes-drawer-header">
+    <h2>Notes</h2>
+    <button class="icon-btn" id="closeNotes">&times;</button>
+  </div>
+  <textarea id="notesEditor" placeholder="Type notes for this card..."></textarea>
+</div>
+
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="sidebar" id="sidebar">
   <div class="sidebar-header">
@@ -687,8 +948,8 @@
     <button class="icon-btn" id="closeSidebar" style="font-size:1.4rem;">&times;</button>
   </div>
   <div class="sidebar-tabs">
-    <button class="sidebar-tab active" data-panel="todos" onclick="switchSidebarTab('todos')">To-Dos</button>
-    <button class="sidebar-tab" data-panel="bookmarks" onclick="switchSidebarTab('bookmarks')">Bookmarks</button>
+    <button class="sidebar-tab active" data-panel="todos" onclick="switchSidebarTab('todos')">Stack</button>
+    <button class="sidebar-tab" data-panel="archive" onclick="switchSidebarTab('archive')">Archive</button>
   </div>
   <div class="sidebar-panel active" id="panelTodos">
     <div class="tag-filters" id="tagFilters"></div>
@@ -698,12 +959,13 @@
     </div>
     <div class="todo-list" id="todoList"></div>
   </div>
-  <div class="sidebar-panel" id="panelBookmarks">
+  <div class="sidebar-panel" id="panelArchive">
     <div class="bookmarks-list" id="bookmarksList"></div>
   </div>
   <div class="sidebar-footer">
     <button class="btn btn-secondary" onclick="exportData()" title="Download all data as JSON">&#8615; Export</button>
     <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" title="Restore from JSON backup">&#8613; Import</button>
+    <button class="btn btn-secondary" onclick="openStudyPlanImport()" title="Import Claude study plan">&#128218; Study Plan</button>
   </div>
 </div>
 
@@ -743,19 +1005,34 @@
 </div>
 
 <script>
+// ─── Schema Version & Migrations ───
+const SCHEMA_VERSION = 1;
+
+function migrateData() {
+  const stored = parseInt(localStorage.getItem('stack_schema_version') || '0', 10);
+  if (stored < SCHEMA_VERSION) {
+    // Future migrations go here:
+    // if (stored < 2) { /* migrate v1 → v2 */ }
+    localStorage.setItem('stack_schema_version', SCHEMA_VERSION);
+  }
+}
+
 // ─── State ───
+migrateData();
 let stack = JSON.parse(localStorage.getItem('stack_cards') || '[]');
 let todos = JSON.parse(localStorage.getItem('stack_todos') || '[]');
-let bookmarks = JSON.parse(localStorage.getItem('stack_bookmarks') || '{}');
+let archive = JSON.parse(localStorage.getItem('stack_bookmarks') || '{}');
 let currentIndex = parseInt(localStorage.getItem('stack_index') || '0', 10);
 let editingId = null;
 let activeTagFilter = null;
+let expandedPlaylists = new Set();
 
 function save() {
   localStorage.setItem('stack_cards', JSON.stringify(stack));
   localStorage.setItem('stack_todos', JSON.stringify(todos));
-  localStorage.setItem('stack_bookmarks', JSON.stringify(bookmarks));
+  localStorage.setItem('stack_bookmarks', JSON.stringify(archive));
   localStorage.setItem('stack_index', currentIndex);
+  localStorage.setItem('stack_schema_version', SCHEMA_VERSION);
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -783,9 +1060,109 @@ function allTags() {
 }
 
 // ─── Header drawer toggle ───
+function syncHeaderHandle() {
+  const h = document.getElementById('appHeader').offsetHeight;
+  document.documentElement.style.setProperty('--header-h', h + 'px');
+}
+syncHeaderHandle();
+window.addEventListener('resize', syncHeaderHandle);
 document.getElementById('headerHandle').addEventListener('click', () => {
   document.body.classList.toggle('header-hidden');
 });
+
+// ─── Notes Drawer ───
+let notesDebounce = null;
+
+function toggleNotes() {
+  const drawer = document.getElementById('notesDrawer');
+  const overlay = document.getElementById('notesOverlay');
+  const isOpen = drawer.classList.contains('open');
+  if (isOpen) {
+    saveNotes();
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    const visible = getVisibleStack();
+    const card = visible[currentIndex];
+    if (!card) return;
+    document.getElementById('notesEditor').value = card.notes || '';
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+    document.getElementById('notesEditor').focus();
+  }
+}
+
+function saveNotes() {
+  const visible = getVisibleStack();
+  const card = visible[currentIndex];
+  if (!card) return;
+  const ri = realIndex();
+  stack[ri].notes = document.getElementById('notesEditor').value;
+  save();
+}
+
+document.getElementById('notesEditor').addEventListener('input', () => {
+  clearTimeout(notesDebounce);
+  notesDebounce = setTimeout(saveNotes, 500);
+});
+
+document.getElementById('closeNotes').addEventListener('click', toggleNotes);
+document.getElementById('notesOverlay').addEventListener('click', toggleNotes);
+
+// ─── Pomodoro Timer ───
+const pomo = { running: false, remaining: 25 * 60, interval: null };
+
+function updatePomoDisplay() {
+  const m = Math.floor(pomo.remaining / 60);
+  const s = pomo.remaining % 60;
+  document.getElementById('pomoDisplay').textContent = `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function togglePomodoro() {
+  if (pomo.running) {
+    clearInterval(pomo.interval);
+    pomo.running = false;
+    document.getElementById('pomoDisplay').classList.remove('running');
+    document.getElementById('pomoStartBtn').innerHTML = '&#9654;';
+  } else {
+    if (pomo.remaining <= 0) resetPomodoro();
+    document.getElementById('pomoDisplay').classList.remove('done');
+    document.getElementById('pomoDisplay').classList.add('running');
+    document.getElementById('pomoStartBtn').innerHTML = '&#9646;&#9646;';
+    pomo.running = true;
+    pomo.interval = setInterval(() => {
+      pomo.remaining--;
+      updatePomoDisplay();
+      if (pomo.remaining <= 0) {
+        clearInterval(pomo.interval);
+        pomo.running = false;
+        document.getElementById('pomoDisplay').classList.remove('running');
+        document.getElementById('pomoDisplay').classList.add('done');
+        document.getElementById('pomoStartBtn').innerHTML = '&#9654;';
+        // Beep using Web Audio API
+        try {
+          const ctx = new AudioContext();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.frequency.value = 880; osc.type = 'sine';
+          gain.gain.value = 0.3;
+          osc.start(); osc.stop(ctx.currentTime + 0.3);
+          setTimeout(() => { const o2 = ctx.createOscillator(); o2.connect(gain); o2.frequency.value = 880; o2.type = 'sine'; o2.start(); o2.stop(ctx.currentTime + 0.3); }, 400);
+        } catch {}
+      }
+    }, 1000);
+  }
+}
+
+function resetPomodoro() {
+  clearInterval(pomo.interval);
+  pomo.running = false;
+  pomo.remaining = 25 * 60;
+  updatePomoDisplay();
+  document.getElementById('pomoDisplay').classList.remove('running', 'done');
+  document.getElementById('pomoStartBtn').innerHTML = '&#9654;';
+}
 
 // ─── Header card actions ───
 function updateHeaderActions() {
@@ -804,6 +1181,14 @@ function updateHeaderActions() {
 
 // ─── Render ───
 function render() {
+  // Close notes drawer on navigate and save
+  const notesDr = document.getElementById('notesDrawer');
+  if (notesDr.classList.contains('open')) {
+    saveNotes();
+    notesDr.classList.remove('open');
+    document.getElementById('notesOverlay').classList.remove('open');
+  }
+
   const main = document.getElementById('main');
   const counter = document.getElementById('counter');
   const dots = document.getElementById('dots');
@@ -862,13 +1247,157 @@ function render() {
   save();
 }
 
+function youtubeEmbedUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace('www.', '');
+    if (host !== 'youtube.com' && host !== 'youtu.be' && host !== 'm.youtube.com') return null;
+    const list = u.searchParams.get('list');
+    const base = 'https://www.youtube-nocookie.com/embed';
+    // Playlist page: /playlist?list=...
+    if (u.pathname === '/playlist' && list) return `${base}/videoseries?list=${list}`;
+    // Single video or video within playlist
+    let vid = u.searchParams.get('v');
+    if (!vid && host === 'youtu.be') vid = u.pathname.slice(1);
+    if (vid) {
+      let embed = `${base}/${vid}`;
+      if (list) embed += `?list=${list}`;
+      return embed;
+    }
+  } catch {}
+  return null;
+}
+
+function renderYouTubePlaylist(card, listId) {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="yt-layout" id="ytLayout">
+      <div class="yt-player-wrap">
+        <div id="ytPlayer"></div>
+      </div>
+      <button class="yt-toggle-expand" onclick="toggleYtPlaylist()" title="Show playlist">&#9776;</button>
+      <div class="yt-playlist-panel" id="ytPlaylistPanel">
+        <div class="yt-playlist-header" id="ytPlaylistHeader">
+          <span>Playlist</span>
+          <button class="yt-toggle-btn" onclick="toggleYtPlaylist()" title="Hide playlist">&times;</button>
+        </div>
+        <div id="ytPlaylistItems"></div>
+      </div>
+    </div>`;
+
+  // Load YT IFrame API if not already loaded
+  if (!window.YT) {
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  }
+
+  function initPlayer() {
+    window._ytPlayer = new YT.Player('ytPlayer', {
+      playerVars: { list: listId, listType: 'playlist', autoplay: 0, rel: 0 },
+      events: {
+        onReady: (e) => {
+          const pl = e.target.getPlaylist();
+          if (pl && pl.length) {
+            document.querySelector('#ytPlaylistHeader span').textContent = `Playlist — ${pl.length} videos`;
+            // Populate playlistVideos on first view
+            if (!card.playlistVideos || card.playlistVideos.length === 0) {
+              card.playlistVideos = pl.map(id => ({ videoId: id, title: '', watched: false }));
+              pl.forEach((id, i) => {
+                fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`)
+                  .then(r => r.json())
+                  .then(data => {
+                    if (data.title && card.playlistVideos[i]) {
+                      card.playlistVideos[i].title = data.title;
+                      save();
+                    }
+                  }).catch(() => {});
+              });
+              save();
+              renderTodos();
+            }
+            renderYtPlaylistItems(pl, 0, card);
+            // Handle pending video jump from todo sidebar
+            if (window._pendingVideoIdx != null) {
+              e.target.playVideoAt(window._pendingVideoIdx);
+              window._pendingVideoIdx = null;
+            }
+          }
+        },
+        onStateChange: (e) => {
+          const idx = e.target.getPlaylistIndex();
+          const pl = e.target.getPlaylist();
+          if (pl) renderYtPlaylistItems(pl, idx, card);
+          // Mark video as watched when it ends
+          if (e.data === YT.PlayerState.ENDED && card.playlistVideos && card.playlistVideos[idx]) {
+            card.playlistVideos[idx].watched = true;
+            save();
+            renderTodos();
+          }
+        }
+      }
+    });
+  }
+
+  if (window.YT && window.YT.Player) initPlayer();
+  else window.onYouTubeIframeAPIReady = initPlayer;
+}
+
+function renderYtPlaylistItems(videoIds, activeIdx, card) {
+  const el = document.getElementById('ytPlaylistItems');
+  if (!el) return;
+  const vids = card && card.playlistVideos || [];
+  el.innerHTML = videoIds.map((id, i) => {
+    const v = vids[i];
+    const watched = v && v.watched;
+    const title = (v && v.title) || 'Video ' + (i + 1);
+    return `
+      <div class="yt-playlist-item${i === activeIdx ? ' active' : ''}${watched ? ' watched' : ''}" onclick="window._ytPlayer.playVideoAt(${i})">
+        <span class="yt-idx">${watched ? '&#10003;' : i + 1}</span>
+        <span class="yt-title">${esc(title)}</span>
+      </div>`;
+  }).join('');
+
+  // Fetch titles for any without cached titles
+  videoIds.forEach((id, i) => {
+    if (vids[i] && vids[i].title) return; // already cached
+    fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`)
+      .then(r => r.json())
+      .then(data => {
+        const titleEl = el.querySelector(`.yt-playlist-item:nth-child(${i + 1}) .yt-title`);
+        if (titleEl && data.title) {
+          titleEl.textContent = data.title;
+          if (vids[i]) { vids[i].title = data.title; save(); }
+        }
+      })
+      .catch(() => {});
+  });
+}
+
+function toggleYtPlaylist() {
+  const panel = document.getElementById('ytPlaylistPanel');
+  const layout = document.getElementById('ytLayout');
+  if (!panel) return;
+  panel.classList.toggle('collapsed');
+  layout.classList.toggle('playlist-collapsed');
+}
+
 function renderLinkView(card) {
   const main = document.getElementById('main');
   const tagsHtml = (card.tags || []).map(t => `<span class="tag" onclick="setStackFilter('${esc(t)}')">${esc(t)}</span>`).join('');
+  const embedUrl = youtubeEmbedUrl(card.url);
+  const iframeSrc = embedUrl || card.url;
+
+  // YouTube playlist — use split layout with playlist panel
+  try {
+    const u = new URL(card.url);
+    const list = u.searchParams.get('list');
+    if (embedUrl && list) { renderYouTubePlaylist(card, list); return; }
+  } catch {}
 
   main.innerHTML = `
     <div class="iframe-container" id="iframeContainer">
-      <iframe src="${esc(card.url)}" id="pageFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="eager"></iframe>
+      <iframe src="${esc(iframeSrc)}" id="pageFrame" ${embedUrl ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen' : 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"'} loading="eager"></iframe>
       <div class="iframe-nudge" id="iframeNudge">
         Page not loading?
         <a href="${esc(card.url)}" target="_blank" rel="noopener">Open in new tab &#8599;</a>
@@ -965,6 +1494,63 @@ function renderTaskView(card) {
   const main = document.getElementById('main');
   const tagsHtml = (card.tags || []).map(t => `<span class="tag" onclick="setStackFilter('${esc(t)}')">${esc(t)}</span>`).join('');
 
+  // Study plan card — special rendering
+  if (card.studyPlan && card.exercises) {
+    const ri = realIndex();
+    const doneCount = card.exercises.filter(e => e.done).length;
+    let currentPhase = '';
+    const exercisesHtml = card.exercises.map((ex, i) => {
+      let phaseHeader = '';
+      if (ex.phase && ex.phase !== currentPhase) {
+        currentPhase = ex.phase;
+        phaseHeader = `<div class="sp-phase">${esc(ex.phase)}</div>`;
+      }
+      const linksHtml = (ex.links || []).map(l => `<a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.replace(/^https?:\/\/(www\.)?/, '').split('/')[0])}</a>`).join(' ');
+      const sourcesHtml = (ex.dataSources || []).map(s => `<span>${esc(s)}</span>`).join(', ');
+      return `${phaseHeader}
+        <div class="sp-exercise ${ex.done ? 'done' : ''}" id="sp-ex-${i}">
+          <div class="sp-exercise-header">
+            <input type="checkbox" ${ex.done ? 'checked' : ''} onchange="toggleExerciseDone(${ri}, ${i})" />
+            <div class="sp-exercise-title">${esc(ex.title)}</div>
+            ${ex.timeEstimate ? `<span class="sp-time">${esc(ex.timeEstimate)}</span>` : ''}
+          </div>
+          <div class="sp-exercise-body">
+            <p>${esc(ex.description)}</p>
+            ${sourcesHtml ? `<div class="sp-sources">Data: ${sourcesHtml}</div>` : ''}
+            ${linksHtml ? `<div class="sp-links">${linksHtml}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="task-view" id="taskView" style="justify-content: flex-start; padding-top: 80px;">
+        <div class="card-container" style="max-width: 720px;">
+          <div class="card" style="padding: 32px;">
+            <div class="card-type-badge">&#128218; Study Plan</div>
+            <div class="card-title">${esc(card.title)}</div>
+            ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ''}
+            ${card.notes ? `<div class="card-notes" style="margin-bottom:20px;">${esc(card.notes)}</div>` : ''}
+            <div class="sp-progress">${doneCount}/${card.exercises.length} exercises complete</div>
+            ${exercisesHtml}
+          </div>
+        </div>
+        <div class="keyboard-hints">
+          <span><kbd>&#8592;</kbd><kbd>&#8594;</kbd> navigate</span>
+          <span><kbd>N</kbd> new</span>
+          <span><kbd>T</kbd> to-dos</span>
+          <span><kbd>Shift+N</kbd> notes</span>
+        </div>
+      </div>`;
+
+    // Handle pending exercise scroll
+    if (window._pendingExerciseIdx != null) {
+      const target = document.getElementById(`sp-ex-${window._pendingExerciseIdx}`);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window._pendingExerciseIdx = null;
+    }
+    return;
+  }
+
   main.innerHTML = `
     <div class="task-view" id="taskView">
       <div class="card-container">
@@ -992,6 +1578,7 @@ function renderTaskView(card) {
         <span><kbd>T</kbd> to-dos</span>
         <span><kbd>F</kbd> filter</span>
         <span><kbd>R</kbd> retire</span>
+        <span><kbd>Shift+N</kbd> notes</span>
       </div>
     </div>`;
 
@@ -1066,11 +1653,23 @@ function saveCard() {
       stack[idx] = { ...stack[idx], type, title, url: type === 'link' ? url : '', tags, notes };
     }
   } else {
-    stack.push({
+    const newCard = {
       id: uid(), type, title,
       url: type === 'link' ? url : '',
       tags, notes, created: Date.now()
-    });
+    };
+    // Detect YouTube playlist
+    if (type === 'link' && url) {
+      try {
+        const u = new URL(url);
+        const list = u.searchParams.get('list');
+        if (list && youtubeEmbedUrl(url)) {
+          newCard.playlistId = list;
+          newCard.playlistVideos = [];
+        }
+      } catch {}
+    }
+    stack.push(newCard);
     currentIndex = stack.length - 1;
   }
 
@@ -1080,6 +1679,58 @@ function saveCard() {
 }
 
 function editCard() { openModal(true); }
+
+// ─── Study Plan Import ───
+function openStudyPlanImport() {
+  document.getElementById('studyPlanInput').value = '';
+  document.getElementById('studyPlanTags').value = '';
+  document.getElementById('studyPlanError').style.display = 'none';
+  document.getElementById('studyPlanOverlay').classList.add('open');
+  document.getElementById('studyPlanInput').focus();
+}
+
+function closeStudyPlanImport() {
+  document.getElementById('studyPlanOverlay').classList.remove('open');
+}
+
+function importStudyPlan() {
+  const raw = document.getElementById('studyPlanInput').value.trim();
+  const errEl = document.getElementById('studyPlanError');
+  try {
+    const data = JSON.parse(raw);
+    const plan = data.plan || data;
+    if (!plan.title || !plan.exercises || !Array.isArray(plan.exercises)) {
+      throw new Error('Missing plan.title or plan.exercises array');
+    }
+    const tags = parseTags(document.getElementById('studyPlanTags').value);
+    const card = {
+      id: uid(), type: 'task',
+      title: plan.title,
+      url: '',
+      tags,
+      notes: plan.description || '',
+      created: Date.now(),
+      studyPlan: true,
+      exercises: plan.exercises.map(ex => ({
+        id: ex.id || uid(),
+        phase: ex.phase || '',
+        title: ex.title || '',
+        description: ex.description || '',
+        timeEstimate: ex.time_estimate || '',
+        dataSources: ex.data_sources || [],
+        links: ex.links || [],
+        done: false
+      }))
+    };
+    stack.push(card);
+    currentIndex = stack.length - 1;
+    closeStudyPlanImport();
+    save(); render(); renderTodos();
+  } catch (e) {
+    errEl.textContent = 'Invalid JSON: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
 
 function removeCard() {
   const ri = realIndex();
@@ -1101,7 +1752,7 @@ function moveCard(dir) {
   render();
 }
 
-// ─── Retire (bookmark) ───
+// ─── Retire (archive) ───
 function retireCard() {
   const ri = realIndex();
   const card = stack[ri];
@@ -1115,9 +1766,9 @@ function retireCard() {
   };
 
   tags.forEach(tag => {
-    if (!bookmarks[tag]) bookmarks[tag] = [];
-    if (!bookmarks[tag].some(b => b.id === card.id)) {
-      bookmarks[tag].push(bmEntry);
+    if (!archive[tag]) archive[tag] = [];
+    if (!archive[tag].some(b => b.id === card.id)) {
+      archive[tag].push(bmEntry);
     }
   });
 
@@ -1128,7 +1779,7 @@ function retireCard() {
   save();
   render();
   renderTodos();
-  renderBookmarks();
+  renderArchive();
 }
 
 // ─── Sidebar ───
@@ -1143,7 +1794,7 @@ function toggleSidebar(panel) {
   document.getElementById('sidebarOverlay').classList.add('open');
   if (panel) switchSidebarTab(panel);
   renderTodos();
-  renderBookmarks();
+  renderArchive();
   if (!panel || panel === 'todos') {
     setTimeout(() => document.getElementById('todoInput').focus(), 200);
   }
@@ -1176,8 +1827,7 @@ function renderTodos() {
   let html = '';
 
   const stackItems = stack.filter(c =>
-    (c.tags && c.tags.length > 0) &&
-    (activeTagFilter === null || c.tags.includes(activeTagFilter))
+    activeTagFilter === null || (c.tags && c.tags.includes(activeTagFilter))
   );
 
   if (stackItems.length > 0) {
@@ -1185,17 +1835,80 @@ function renderTodos() {
     stackItems.forEach(c => {
       const tagsHtml = (c.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
       const idx = stack.indexOf(c);
-      html += `
-        <div class="todo-item">
-          <input type="checkbox" onchange="removeCardByIdx(${idx})" title="Mark done & remove" />
-          <div class="todo-item-content">
-            <label onclick="goToAndClose(${idx})">${esc(c.title)}</label>
-            ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
-          </div>
-          <div class="todo-actions">
-            <button class="todo-action-btn" onclick="goToAndClose(${idx})" title="Go to card">&#8594;</button>
-          </div>
-        </div>`;
+
+      if (c.playlistId) {
+        // YouTube playlist — collapsible parent with video children
+        const vids = c.playlistVideos || [];
+        const watchedCount = vids.filter(v => v.watched).length;
+        const totalCount = vids.length;
+        const allDone = totalCount > 0 && watchedCount === totalCount;
+        const expanded = expandedPlaylists.has(c.id);
+        html += `
+          <div class="todo-item todo-playlist-parent ${allDone ? 'done' : ''}" draggable="true" data-stack-idx="${idx}" onclick="togglePlaylistExpand('${c.id}')">
+            <span class="playlist-expand-arrow ${expanded ? 'expanded' : ''}">&#9654;</span>
+            <div class="todo-item-content">
+              <label onclick="event.stopPropagation(); goToAndClose(${idx})">${esc(c.title)}</label>
+              <div class="todo-item-meta">${totalCount > 0 ? `${watchedCount}/${totalCount} watched` : 'Open playlist to load videos'}</div>
+              ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
+            </div>
+            <div class="todo-actions">
+              <button class="todo-action-btn" onclick="event.stopPropagation(); goToAndClose(${idx})" title="Go to playlist">&#8594;</button>
+            </div>
+          </div>`;
+        if (expanded && vids.length > 0) {
+          vids.forEach((v, vi) => {
+            html += `
+              <div class="todo-item todo-playlist-child ${v.watched ? 'done' : ''}">
+                <input type="checkbox" ${v.watched ? 'checked' : ''} onchange="toggleVideoWatched(${idx}, ${vi})" />
+                <div class="todo-item-content">
+                  <label onclick="goToPlaylistVideo(${idx}, ${vi})">${esc(v.title || 'Video ' + (vi + 1))}</label>
+                </div>
+              </div>`;
+          });
+        }
+      } else if (c.studyPlan && c.exercises) {
+        // Study plan — collapsible parent with exercise children
+        const exs = c.exercises;
+        const doneCount = exs.filter(e => e.done).length;
+        const allDone = exs.length > 0 && doneCount === exs.length;
+        const expanded = expandedPlaylists.has(c.id);
+        html += `
+          <div class="todo-item todo-playlist-parent ${allDone ? 'done' : ''}" draggable="true" data-stack-idx="${idx}" onclick="togglePlaylistExpand('${c.id}')">
+            <span class="playlist-expand-arrow ${expanded ? 'expanded' : ''}">&#9654;</span>
+            <div class="todo-item-content">
+              <label onclick="event.stopPropagation(); goToAndClose(${idx})">${esc(c.title)}</label>
+              <div class="todo-item-meta">${doneCount}/${exs.length} exercises done</div>
+              ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
+            </div>
+            <div class="todo-actions">
+              <button class="todo-action-btn" onclick="event.stopPropagation(); goToAndClose(${idx})" title="Go to plan">&#8594;</button>
+            </div>
+          </div>`;
+        if (expanded) {
+          exs.forEach((ex, ei) => {
+            html += `
+              <div class="todo-item todo-playlist-child ${ex.done ? 'done' : ''}">
+                <input type="checkbox" ${ex.done ? 'checked' : ''} onchange="toggleExerciseDone(${idx}, ${ei})" />
+                <div class="todo-item-content">
+                  <label onclick="goToExercise(${idx}, ${ei})">${esc(ex.title)}</label>
+                </div>
+              </div>`;
+          });
+        }
+      } else {
+        // Regular card
+        html += `
+          <div class="todo-item" draggable="true" data-stack-idx="${idx}">
+            <input type="checkbox" onchange="removeCardByIdx(${idx})" title="Mark done & remove" />
+            <div class="todo-item-content">
+              <label onclick="goToAndClose(${idx})">${esc(c.title)}</label>
+              ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
+            </div>
+            <div class="todo-actions">
+              <button class="todo-action-btn" onclick="goToAndClose(${idx})" title="Go to card">&#8594;</button>
+            </div>
+          </div>`;
+      }
     });
   }
 
@@ -1226,24 +1939,66 @@ function renderTodos() {
   }
 
   if (!html) {
-    html = '<div class="todo-empty">No items yet. Add cards with tags<br>or create quick to-dos above.</div>';
+    html = '<div class="todo-empty">No items yet. Add cards to the stack<br>or create quick to-dos above.</div>';
   }
 
   list.innerHTML = html;
+  setupDragReorder();
 }
 
-function renderBookmarks() {
+let dragSrcIdx = null;
+
+function setupDragReorder() {
+  const items = document.querySelectorAll('.todo-item[draggable="true"]');
+  items.forEach(item => {
+    item.addEventListener('dragstart', e => {
+      dragSrcIdx = parseInt(item.dataset.stackIdx);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const targetIdx = parseInt(item.dataset.stackIdx);
+      if (dragSrcIdx !== null && dragSrcIdx !== targetIdx) {
+        const card = stack.splice(dragSrcIdx, 1)[0];
+        stack.splice(targetIdx, 0, card);
+        // Adjust currentIndex
+        if (currentIndex === dragSrcIdx) currentIndex = targetIdx;
+        else {
+          if (dragSrcIdx < currentIndex && targetIdx >= currentIndex) currentIndex--;
+          else if (dragSrcIdx > currentIndex && targetIdx <= currentIndex) currentIndex++;
+        }
+        save(); render(); renderTodos();
+      }
+      dragSrcIdx = null;
+    });
+  });
+}
+
+function renderArchive() {
   const list = document.getElementById('bookmarksList');
-  const folders = Object.keys(bookmarks).sort();
+  const folders = Object.keys(archive).sort();
 
   if (folders.length === 0) {
-    list.innerHTML = '<div class="todo-empty">No bookmarks yet.<br>Retire cards from the stack to save them here.</div>';
+    list.innerHTML = '<div class="todo-empty">No archived items yet.<br>Retire cards from the stack to save them here.</div>';
     return;
   }
 
   let html = '';
   folders.forEach(folder => {
-    const items = bookmarks[folder];
+    const items = archive[folder];
     if (!items || items.length === 0) return;
 
     html += `<div class="bm-folder open">
@@ -1259,10 +2014,10 @@ function renderBookmarks() {
       const target = bm.url ? ' target="_blank" rel="noopener"' : '';
       html += `
         <div class="bm-item">
-          <a href="${href}"${target} draggable="true" title="Drag to bookmarks bar — ${esc(bm.notes || bm.title)}">${esc(bm.title)}</a>
+          <a href="${href}"${target} draggable="true" title="Drag to browser bookmarks — ${esc(bm.notes || bm.title)}">${esc(bm.title)}</a>
           <div class="bm-actions">
-            <button class="bm-restore-btn" onclick="restoreBookmark('${esc(folder)}', ${i})" title="Restore to stack">&#8634;</button>
-            <button class="bm-delete-btn" onclick="deleteBookmark('${esc(folder)}', ${i})" title="Delete">&times;</button>
+            <button class="bm-restore-btn" onclick="restoreArchived('${esc(folder)}', ${i})" title="Restore to stack">&#8634;</button>
+            <button class="bm-delete-btn" onclick="deleteArchived('${esc(folder)}', ${i})" title="Delete">&times;</button>
           </div>
         </div>`;
     });
@@ -1273,8 +2028,8 @@ function renderBookmarks() {
   list.innerHTML = html;
 }
 
-function restoreBookmark(folder, idx) {
-  const bm = bookmarks[folder]?.[idx];
+function restoreArchived(folder, idx) {
+  const bm = archive[folder]?.[idx];
   if (!bm) return;
 
   stack.push({
@@ -1285,25 +2040,25 @@ function restoreBookmark(folder, idx) {
   currentIndex = stack.length - 1;
 
   const bmId = bm.id;
-  Object.keys(bookmarks).forEach(f => {
-    bookmarks[f] = bookmarks[f].filter(b => b.id !== bmId);
-    if (bookmarks[f].length === 0) delete bookmarks[f];
+  Object.keys(archive).forEach(f => {
+    archive[f] = archive[f].filter(b => b.id !== bmId);
+    if (archive[f].length === 0) delete archive[f];
   });
 
-  save(); render(); renderTodos(); renderBookmarks();
+  save(); render(); renderTodos(); renderArchive();
 }
 
-function deleteBookmark(folder, idx) {
-  const bm = bookmarks[folder]?.[idx];
+function deleteArchived(folder, idx) {
+  const bm = archive[folder]?.[idx];
   if (!bm) return;
 
   const bmId = bm.id;
-  Object.keys(bookmarks).forEach(f => {
-    bookmarks[f] = bookmarks[f].filter(b => b.id !== bmId);
-    if (bookmarks[f].length === 0) delete bookmarks[f];
+  Object.keys(archive).forEach(f => {
+    archive[f] = archive[f].filter(b => b.id !== bmId);
+    if (archive[f].length === 0) delete archive[f];
   });
 
-  save(); renderBookmarks();
+  save(); renderArchive();
 }
 
 function setTagFilter(tag) { activeTagFilter = tag; renderTodos(); }
@@ -1312,6 +2067,37 @@ function goToAndClose(idx) {
   currentIndex = idx;
   render();
   toggleSidebar();
+}
+
+function goToPlaylistVideo(cardIdx, videoIdx) {
+  window._pendingVideoIdx = videoIdx;
+  goToAndClose(cardIdx);
+}
+
+function toggleVideoWatched(cardIdx, videoIdx) {
+  if (stack[cardIdx] && stack[cardIdx].playlistVideos && stack[cardIdx].playlistVideos[videoIdx]) {
+    stack[cardIdx].playlistVideos[videoIdx].watched = !stack[cardIdx].playlistVideos[videoIdx].watched;
+    save();
+    renderTodos();
+  }
+}
+
+function togglePlaylistExpand(cardId) {
+  if (expandedPlaylists.has(cardId)) expandedPlaylists.delete(cardId);
+  else expandedPlaylists.add(cardId);
+  renderTodos();
+}
+
+function toggleExerciseDone(cardIdx, exIdx) {
+  if (stack[cardIdx] && stack[cardIdx].exercises && stack[cardIdx].exercises[exIdx]) {
+    stack[cardIdx].exercises[exIdx].done = !stack[cardIdx].exercises[exIdx].done;
+    save(); render(); renderTodos();
+  }
+}
+
+function goToExercise(cardIdx, exIdx) {
+  window._pendingExerciseIdx = exIdx;
+  goToAndClose(cardIdx);
 }
 
 function removeCardByIdx(idx) {
@@ -1398,7 +2184,7 @@ function exportData() {
     exported: new Date().toISOString(),
     stack_cards: stack,
     stack_todos: todos,
-    stack_bookmarks: bookmarks,
+    stack_bookmarks: archive,
     stack_index: currentIndex
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1417,12 +2203,12 @@ function importData(file) {
       const data = JSON.parse(reader.result);
       if (data.stack_cards) stack = data.stack_cards;
       if (data.stack_todos) todos = data.stack_todos;
-      if (data.stack_bookmarks) bookmarks = data.stack_bookmarks;
+      if (data.stack_bookmarks) archive = data.stack_bookmarks;
       if (typeof data.stack_index === 'number') currentIndex = data.stack_index;
       save();
       render();
       renderTodos();
-      renderBookmarks();
+      renderArchive();
       alert('Data imported successfully!');
     } catch (e) {
       alert('Invalid backup file: ' + e.message);
@@ -1434,7 +2220,7 @@ function importData(file) {
 // ─── Event Listeners ───
 document.getElementById('addBtn').addEventListener('click', () => openModal());
 document.getElementById('todoBtn').addEventListener('click', () => toggleSidebar('todos'));
-document.getElementById('bmBtn').addEventListener('click', () => toggleSidebar('bookmarks'));
+document.getElementById('bmBtn').addEventListener('click', () => toggleSidebar('archive'));
 document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar());
 document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar());
 document.getElementById('modalCancel').addEventListener('click', closeModal);
@@ -1449,6 +2235,10 @@ document.getElementById('importFile').addEventListener('change', e => {
 
 document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+document.getElementById('studyPlanOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('studyPlanOverlay')) closeStudyPlanImport();
 });
 
 document.querySelectorAll('#cardTitleInput, #cardUrlInput').forEach(el => {
@@ -1471,7 +2261,7 @@ document.addEventListener('keydown', e => {
     case 'ArrowLeft': case 'h': case 'k': prev(); break;
     case 'n': case 'a': openModal(); break;
     case 't': toggleSidebar('todos'); break;
-    case 'b': toggleSidebar('bookmarks'); break;
+    case 'b': toggleSidebar('archive'); break;
     case 'o':
       if (stack[currentIndex]?.type === 'link' && stack[currentIndex]?.url)
         window.open(stack[currentIndex].url, '_blank');
@@ -1480,6 +2270,8 @@ document.addEventListener('keydown', e => {
     case 'd': case 'Backspace': if (stack.length) removeCard(); break;
     case 'e': if (stack.length) editCard(); break;
     case 'f': promptStackFilter(); break;
+    case 'H': document.body.classList.toggle('header-hidden'); break;
+    case 'N': toggleNotes(); break;
     case 'Escape': if (stackFilter) { clearStackFilter(); e.preventDefault(); } break;
   }
 });
