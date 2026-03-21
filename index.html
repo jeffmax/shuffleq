@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stack — Focus on one thing at a time</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --card: #0f3460;
+    --accent: #e94560;
+    --accent-hover: #ff6b81;
+    --text: #eee;
+    --text-muted: #8899aa;
+    --sidebar-width: 360px;
+    --radius: 12px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 30;
+    transition: transform 0.3s ease;
+  }
+
+  body.header-hidden header {
+    transform: translateY(-100%);
+  }
+
+  .header-drawer-handle {
+    position: absolute; bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    width: 48px; height: 20px;
+    background: var(--surface);
+    border-radius: 0 0 8px 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-top: none;
+    cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    opacity: 0.5; transition: opacity 0.2s;
+    z-index: 31;
+  }
+
+  .header-drawer-handle:hover { opacity: 1; }
+
+  .header-drawer-handle::after {
+    content: '';
+    width: 24px; height: 3px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+  }
+
+  body.header-hidden .header-drawer-handle::after {
+    background: var(--accent);
+  }
+
+  .header-left { display: flex; align-items: center; gap: 16px; }
+
+  header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px; }
+  header h1 span { color: var(--accent); }
+
+  .header-controls { display: flex; align-items: center; gap: 10px; }
+
+  .counter {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .icon-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    transition: background 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .icon-btn:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  .nav-row { display: flex; align-items: center; gap: 8px; }
+
+  .nav-btn {
+    background: none; border: none;
+    color: var(--text-muted);
+    font-size: 1.3rem; cursor: pointer;
+    padding: 0 4px; line-height: 1;
+  }
+
+  .nav-btn:hover { color: var(--text); }
+  .nav-btn:disabled { opacity: 0.2; cursor: default; }
+
+  .dots-row {
+    display: flex; gap: 5px; align-items: center;
+    max-width: 300px; overflow: hidden;
+  }
+
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    cursor: pointer; transition: background 0.15s, transform 0.15s;
+    flex-shrink: 0;
+  }
+
+  .dot.active { background: var(--accent); transform: scale(1.4); }
+  .dot.link-dot { background: rgba(100,180,255,0.3); }
+  .dot.link-dot.active { background: var(--accent); }
+  .dot:hover { background: rgba(255,255,255,0.35); }
+
+  /* ── Main Area ── */
+  main {
+    flex: 1; display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+  }
+
+  /* ── Header Card Actions (shown for current card) ── */
+  .header-card-actions {
+    display: flex; align-items: center; gap: 6px;
+    margin-left: 8px; padding-left: 12px;
+    border-left: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .header-card-actions:empty { display: none; }
+
+  .header-action {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-muted); padding: 4px 10px;
+    border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+    text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  .header-action:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .header-action.retire { color: #f0c040; border-color: rgba(240,192,64,0.2); }
+  .header-action.retire:hover { background: rgba(240,192,64,0.12); }
+  .header-action.danger { color: #ff6b6b; border-color: rgba(255,80,80,0.2); }
+  .header-action.danger:hover { background: rgba(255,80,80,0.15); }
+
+  .tag {
+    display: inline-block; padding: 2px 7px;
+    border-radius: 10px; font-size: 0.65rem; font-weight: 600;
+    background: rgba(233,69,96,0.15); color: var(--accent);
+    cursor: pointer; white-space: nowrap; transition: background 0.15s;
+  }
+
+  .tag:hover { background: rgba(233,69,96,0.3); }
+
+  /* ── Iframe ── */
+  .iframe-container {
+    flex: 1; position: relative; background: #fff;
+  }
+
+  .iframe-container iframe {
+    width: 100%; height: 100%; border: none; display: block;
+  }
+
+  /* Nudge bar — only shown when page is blocked */
+  .iframe-nudge {
+    position: absolute; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: rgba(22,33,62,0.92);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px; padding: 8px 10px 8px 16px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.8rem; color: var(--text-muted);
+    opacity: 0; transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none; z-index: 15; white-space: nowrap;
+  }
+
+  .iframe-nudge.visible {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+    pointer-events: all;
+  }
+
+  .iframe-nudge a {
+    color: var(--accent); text-decoration: none; font-weight: 600;
+    padding: 4px 12px; border-radius: 14px;
+    background: rgba(233,69,96,0.12); transition: background 0.15s;
+  }
+
+  .iframe-nudge a:hover { background: rgba(233,69,96,0.25); }
+
+  .iframe-nudge .nudge-dismiss {
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; font-size: 1rem; padding: 0 4px; line-height: 1;
+  }
+
+  .iframe-nudge .nudge-dismiss:hover { color: var(--text); }
+
+  /* ── Blocked Page Fallback Card ── */
+  .blocked-view {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 60px 32px 32px; overflow-y: auto;
+    background: var(--bg);
+    position: relative;
+  }
+
+  .blocked-card {
+    width: 100%; max-width: 600px;
+    background: var(--card); border-radius: var(--radius);
+    padding: 36px; box-shadow: var(--shadow);
+    animation: cardIn 0.25s ease-out;
+  }
+
+  .blocked-card .blocked-icon {
+    font-size: 2.5rem; margin-bottom: 16px; opacity: 0.5;
+  }
+
+  .blocked-card .blocked-title {
+    font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;
+    word-break: break-word;
+  }
+
+  .blocked-card .blocked-url {
+    font-size: 0.8rem; color: var(--text-muted);
+    word-break: break-all; margin-bottom: 16px;
+  }
+
+  .blocked-card .blocked-tags {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+
+  .blocked-card .blocked-notes {
+    font-size: 0.9rem; color: var(--text-muted); line-height: 1.6;
+    white-space: pre-wrap; margin-bottom: 24px;
+  }
+
+  .blocked-card .blocked-actions {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+
+  /* ── Scroll-to-bottom done prompt ── */
+  .scroll-done-prompt {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; padding: 14px 24px;
+    background: rgba(22,33,62,0.95);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    font-size: 0.85rem; color: var(--text-muted);
+    opacity: 0; transform: translateY(100%);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none; z-index: 25;
+  }
+
+  .scroll-done-prompt.visible {
+    opacity: 1; transform: translateY(0);
+    pointer-events: all;
+  }
+
+  .scroll-done-prompt .btn { padding: 6px 16px; font-size: 0.8rem; }
+
+  /* ── Task Card View ── */
+  .task-view {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 32px; overflow-y: auto;
+  }
+
+  .card-container { width: 100%; max-width: 640px; position: relative; }
+
+  .card-container::before,
+  .card-container::after {
+    content: ''; position: absolute; left: 50%; bottom: -6px;
+    width: 92%; height: 100%; background: var(--card);
+    border-radius: var(--radius); transform: translateX(-50%);
+    opacity: 0.3; z-index: -1;
+  }
+
+  .card-container::after { bottom: -12px; width: 84%; opacity: 0.15; z-index: -2; }
+
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 40px; box-shadow: var(--shadow);
+    min-height: 260px; display: flex; flex-direction: column;
+    animation: cardIn 0.25s ease-out;
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .card-type-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--accent); font-weight: 600; margin-bottom: 12px;
+  }
+
+  .card-title {
+    font-size: 1.5rem; font-weight: 700; line-height: 1.3;
+    margin-bottom: 12px; word-break: break-word;
+  }
+
+  .card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+
+  .card-notes {
+    font-size: 0.95rem; color: var(--text-muted); line-height: 1.6;
+    flex: 1; margin-bottom: 20px; white-space: pre-wrap;
+  }
+
+  .card-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid rgba(255,255,255,0.1); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.14); }
+  .btn-danger { background: rgba(255,80,80,0.15); color: #ff6b6b; border: 1px solid rgba(255,80,80,0.2); }
+  .btn-danger:hover { background: rgba(255,80,80,0.25); }
+  .btn-bookmark { background: rgba(240,192,64,0.1); color: #f0c040; border: 1px solid rgba(240,192,64,0.2); }
+  .btn-bookmark:hover { background: rgba(240,192,64,0.2); }
+  .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+  .mobile-only { display: none; }
+
+  .empty-state { text-align: center; color: var(--text-muted); }
+  .empty-state .big-icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.5; }
+  .empty-state p { font-size: 1.1rem; margin-bottom: 24px; }
+
+  /* ── Sidebar ── */
+  .sidebar-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+
+  .sidebar-overlay.open { opacity: 1; pointer-events: all; }
+
+  .sidebar {
+    position: fixed; top: 0; right: 0;
+    width: var(--sidebar-width); height: 100vh;
+    background: var(--surface); z-index: 100;
+    transform: translateX(100%); transition: transform 0.3s ease;
+    display: flex; flex-direction: column;
+    border-left: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sidebar-header h2 { font-size: 1.05rem; font-weight: 700; }
+
+  .sidebar-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+  .sidebar-tab {
+    flex: 1; padding: 10px; text-align: center;
+    font-size: 0.78rem; font-weight: 600; color: var(--text-muted);
+    cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+
+  .sidebar-tab:hover { color: var(--text); }
+  .sidebar-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .sidebar-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .sidebar-panel.active { display: flex; }
+
+  .tag-filters {
+    display: flex; gap: 6px; padding: 12px 20px;
+    flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .tag-filter {
+    padding: 4px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.1); background: none;
+    color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+
+  .tag-filter:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+  .tag-filter.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .todo-input-row {
+    display: flex; gap: 8px; padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .todo-input-row input {
+    flex: 1; padding: 9px 12px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; color: var(--text); font-size: 0.85rem; outline: none;
+  }
+
+  .todo-input-row input:focus { border-color: var(--accent); }
+
+  .todo-list { flex: 1; overflow-y: auto; padding: 8px 20px; }
+
+  .todo-section-label {
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-muted); padding: 12px 0 6px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .todo-section-label::after {
+    content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06);
+  }
+
+  .todo-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .todo-item input[type="checkbox"] {
+    margin-top: 3px; width: 16px; height: 16px;
+    accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+  }
+
+  .todo-item-content { flex: 1; min-width: 0; }
+
+  .todo-item label {
+    display: block; font-size: 0.85rem; line-height: 1.4;
+    cursor: pointer; word-break: break-word;
+  }
+
+  .todo-item .todo-item-tags { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+  .todo-item .todo-item-tags .tag { font-size: 0.6rem; padding: 1px 6px; }
+  .todo-item.done label { text-decoration: line-through; color: var(--text-muted); }
+
+  .todo-item .todo-actions {
+    display: flex; gap: 2px; flex-shrink: 0;
+    opacity: 0; transition: opacity 0.15s;
+  }
+
+  .todo-item:hover .todo-actions { opacity: 1; }
+
+  .todo-action-btn {
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; font-size: 0.85rem; padding: 2px 4px; border-radius: 4px;
+  }
+
+  .todo-action-btn:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+
+  .todo-empty {
+    color: var(--text-muted); text-align: center;
+    padding: 40px 0; font-size: 0.85rem;
+  }
+
+  /* ── Bookmarks Panel ── */
+  .bookmarks-list { flex: 1; overflow-y: auto; padding: 8px 20px; }
+
+  .bm-folder { margin-bottom: 4px; }
+
+  .bm-folder-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; cursor: pointer; font-size: 0.82rem;
+    font-weight: 600; color: var(--text); user-select: none;
+  }
+
+  .bm-folder-header:hover { color: var(--accent); }
+
+  .bm-folder-arrow {
+    font-size: 0.65rem; transition: transform 0.2s; color: var(--text-muted);
+  }
+
+  .bm-folder.open .bm-folder-arrow { transform: rotate(90deg); }
+  .bm-folder-count { font-size: 0.65rem; color: var(--text-muted); font-weight: 400; }
+  .bm-folder-items { display: none; padding-left: 20px; }
+  .bm-folder.open .bm-folder-items { display: block; }
+
+  .bm-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .bm-item a {
+    flex: 1; font-size: 0.82rem; color: var(--text-muted);
+    text-decoration: none; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; transition: color 0.15s; cursor: grab;
+  }
+
+  .bm-item a:hover { color: var(--accent); }
+  .bm-item a:active { cursor: grabbing; }
+
+  .bm-item .bm-actions {
+    display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s;
+  }
+
+  .bm-item:hover .bm-actions { opacity: 1; }
+
+  .bm-restore-btn, .bm-delete-btn {
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; font-size: 0.8rem; padding: 2px 4px; border-radius: 4px;
+  }
+
+  .bm-restore-btn:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+  .bm-delete-btn:hover { color: #ff6b6b; background: rgba(255,80,80,0.1); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 200; display: none; align-items: center;
+    justify-content: center; padding: 24px;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 28px; width: 100%; max-width: 480px;
+    box-shadow: var(--shadow); animation: cardIn 0.2s ease-out;
+  }
+
+  .modal h2 { font-size: 1.15rem; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+
+  .form-group label {
+    display: block; font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-muted);
+    margin-bottom: 5px; font-weight: 600;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    width: 100%; padding: 9px 12px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; color: var(--text); font-size: 0.9rem;
+    font-family: inherit; outline: none;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus,
+  .form-group select:focus { border-color: var(--accent); }
+  .form-group textarea { resize: vertical; min-height: 70px; }
+
+  .form-group select {
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238899aa' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  .form-group select option { background: var(--surface); color: var(--text); }
+  .form-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+  }
+
+  .keyboard-hints {
+    position: absolute; bottom: 16px; left: 50%;
+    transform: translateX(-50%); display: flex; gap: 16px;
+    font-size: 0.7rem; color: var(--text-muted);
+    opacity: 0.4; pointer-events: none;
+  }
+
+  kbd {
+    background: rgba(255,255,255,0.08); padding: 2px 6px;
+    border-radius: 4px; font-family: inherit; font-size: 0.7rem; margin-right: 3px;
+  }
+
+  /* ── Tag Filter Bar (stack filtering) ── */
+  .stack-filter-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 20px; background: rgba(233,69,96,0.08);
+    border-bottom: 1px solid rgba(233,69,96,0.15);
+    font-size: 0.78rem; color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .stack-filter-bar .tag { font-size: 0.72rem; }
+
+  .stack-filter-bar button {
+    background: none; border: none; color: var(--accent);
+    cursor: pointer; font-size: 0.8rem; font-weight: 600;
+    padding: 2px 8px; border-radius: 6px;
+  }
+
+  .stack-filter-bar button:hover { background: rgba(233,69,96,0.15); }
+
+  /* ── Data Backup Buttons ── */
+  .sidebar-footer {
+    padding: 12px 20px; border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex; gap: 8px; flex-shrink: 0;
+  }
+
+  .sidebar-footer .btn { flex: 1; font-size: 0.75rem; padding: 8px; text-align: center; }
+
+  /* ── Nudge Convert Button ── */
+  .nudge-convert {
+    color: var(--text); text-decoration: none; font-weight: 600;
+    padding: 4px 12px; border-radius: 14px; font-size: 0.8rem;
+    background: rgba(255,255,255,0.1); border: none; cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .nudge-convert:hover { background: rgba(255,255,255,0.2); }
+
+  @media (max-width: 700px) {
+    .card { padding: 28px 24px; }
+    .card-title { font-size: 1.3rem; }
+    .task-view { padding: 20px 16px; flex-direction: column; }
+    .card-container { max-width: 100%; width: 100%; }
+    .sidebar { width: 100%; }
+    .keyboard-hints { display: none; }
+    .dots-row { max-width: 160px; }
+    .blocked-card { margin: 20px 16px; max-width: 100%; }
+    header { padding: 10px 12px; }
+    .header-controls { gap: 6px; }
+    .icon-btn { width: 32px; height: 32px; font-size: 1rem; }
+    .header-card-actions { display: none; }
+    .header-left { gap: 10px; }
+    .mobile-only { display: flex; flex-direction: column; gap: 8px; }
+    .mobile-only .btn { width: 100%; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<header id="appHeader">
+  <div class="header-left">
+    <h1><span>&#9646;</span> Stack</h1>
+    <div class="nav-row" id="navRow">
+      <button class="nav-btn" id="prevBtn" onclick="prev()">&#8249;</button>
+      <div class="dots-row" id="dots"></div>
+      <button class="nav-btn" id="nextBtn" onclick="next()">&#8250;</button>
+      <span class="counter" id="counter"></span>
+    </div>
+    <div class="header-card-actions" id="headerCardActions"></div>
+  </div>
+  <div class="header-controls">
+    <button class="icon-btn" id="addBtn" title="Add card (N)">+</button>
+    <button class="icon-btn" id="bmBtn" title="Bookmarks (B)" style="font-size:0.95rem;">&#9733;</button>
+    <button class="icon-btn" id="todoBtn" title="To-do list (T)">&#9776;</button>
+  </div>
+  <div class="header-drawer-handle" id="headerHandle" title="Toggle header"></div>
+</header>
+
+<div class="stack-filter-bar" id="stackFilterBar" style="display:none;">
+  Filtering: <span id="stackFilterTag"></span>
+  <button onclick="clearStackFilter()">&times; Clear</button>
+</div>
+
+<main id="main"></main>
+
+<input type="file" id="importFile" accept=".json" style="display:none;" />
+
+<!-- ── Sidebar ── -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2 id="sidebarTitle">Stack</h2>
+    <button class="icon-btn" id="closeSidebar" style="font-size:1.4rem;">&times;</button>
+  </div>
+  <div class="sidebar-tabs">
+    <button class="sidebar-tab active" data-panel="todos" onclick="switchSidebarTab('todos')">To-Dos</button>
+    <button class="sidebar-tab" data-panel="bookmarks" onclick="switchSidebarTab('bookmarks')">Bookmarks</button>
+  </div>
+  <div class="sidebar-panel active" id="panelTodos">
+    <div class="tag-filters" id="tagFilters"></div>
+    <div class="todo-input-row">
+      <input type="text" id="todoInput" placeholder="Add a quick to-do..." />
+      <button class="btn btn-primary btn-sm" id="addTodoBtn">+</button>
+    </div>
+    <div class="todo-list" id="todoList"></div>
+  </div>
+  <div class="sidebar-panel" id="panelBookmarks">
+    <div class="bookmarks-list" id="bookmarksList"></div>
+  </div>
+  <div class="sidebar-footer">
+    <button class="btn btn-secondary" onclick="exportData()" title="Download all data as JSON">&#8615; Export</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" title="Restore from JSON backup">&#8613; Import</button>
+  </div>
+</div>
+
+<!-- ── Modal ── -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">Add to Stack</h2>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="cardType">
+        <option value="link">Webpage / Link</option>
+        <option value="task">Task / Note</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label id="cardTitleLabel">Title</label>
+      <input type="text" id="cardTitleInput" placeholder="e.g. CSS Grid Tutorial" />
+    </div>
+    <div class="form-group" id="urlGroup">
+      <label>URL</label>
+      <input type="url" id="cardUrlInput" placeholder="https://..." />
+    </div>
+    <div class="form-group">
+      <label>Tags</label>
+      <input type="text" id="cardTagsInput" placeholder="e.g. #research #css #urgent" />
+      <div class="form-hint">Space-separated. # is added automatically if omitted.</div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <textarea id="cardNotesInput" placeholder="Why you saved this, key sections to read..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modalCancel">Cancel</button>
+      <button class="btn btn-primary" id="modalSave">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ───
+let stack = JSON.parse(localStorage.getItem('stack_cards') || '[]');
+let todos = JSON.parse(localStorage.getItem('stack_todos') || '[]');
+let bookmarks = JSON.parse(localStorage.getItem('stack_bookmarks') || '{}');
+let currentIndex = parseInt(localStorage.getItem('stack_index') || '0', 10);
+let editingId = null;
+let activeTagFilter = null;
+
+function save() {
+  localStorage.setItem('stack_cards', JSON.stringify(stack));
+  localStorage.setItem('stack_todos', JSON.stringify(todos));
+  localStorage.setItem('stack_bookmarks', JSON.stringify(bookmarks));
+  localStorage.setItem('stack_index', currentIndex);
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+function parseTags(str) {
+  if (!str) return [];
+  return str.split(/[\s,]+/)
+    .map(t => t.replace(/^#*/, '').trim().toLowerCase())
+    .filter(t => t.length > 0)
+    .map(t => '#' + t)
+    .filter((t, i, a) => a.indexOf(t) === i);
+}
+
+function allTags() {
+  const tags = new Set();
+  stack.forEach(c => (c.tags || []).forEach(t => tags.add(t)));
+  todos.forEach(t => (t.tags || []).forEach(tg => tags.add(tg)));
+  return [...tags].sort();
+}
+
+// ─── Header drawer toggle ───
+document.getElementById('headerHandle').addEventListener('click', () => {
+  document.body.classList.toggle('header-hidden');
+});
+
+// ─── Header card actions ───
+function updateHeaderActions() {
+  const el = document.getElementById('headerCardActions');
+  const visible = getVisibleStack();
+  const card = visible[currentIndex];
+  if (!card || visible.length === 0) { el.innerHTML = ''; return; }
+
+  const isLink = card.type === 'link' && card.url;
+  el.innerHTML = `
+    <button class="header-action" onclick="editCard()" title="Edit (E)">Edit</button>
+    ${isLink ? `<a href="${esc(card.url)}" target="_blank" rel="noopener" class="header-action" title="Open in new tab (O)">New Tab &#8599;</a>` : ''}
+    <button class="header-action retire" onclick="retireCard()" title="Retire (R)">&#9733; Retire</button>
+    <button class="header-action danger" onclick="removeCard()" title="Delete (D)">&#10005;</button>`;
+}
+
+// ─── Render ───
+function render() {
+  const main = document.getElementById('main');
+  const counter = document.getElementById('counter');
+  const dots = document.getElementById('dots');
+  const navRow = document.getElementById('navRow');
+
+  applyStackFilter();
+  const visible = getVisibleStack();
+
+  if (visible.length === 0) {
+    document.getElementById('headerCardActions').innerHTML = '';
+    counter.textContent = '';
+    dots.innerHTML = '';
+    navRow.style.display = 'none';
+    const msg = stackFilter
+      ? `No cards tagged <strong>${esc(stackFilter)}</strong>.<br><button class="btn btn-secondary btn-sm" onclick="clearStackFilter()">Clear filter</button>`
+      : 'Your stack is empty.<br>Add a webpage or task to get started.';
+    main.innerHTML = `
+      <div class="task-view">
+        <div class="empty-state">
+          <div class="big-icon">&#9646;</div>
+          <p>${msg}</p>
+          ${!stackFilter ? '<button class="btn btn-primary" onclick="openModal()">+ Add First Card</button>' : ''}
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Clamp currentIndex to visible stack
+  if (currentIndex >= visible.length) currentIndex = Math.max(0, visible.length - 1);
+  if (currentIndex < 0) currentIndex = 0;
+
+  navRow.style.display = 'flex';
+  counter.textContent = `${currentIndex + 1} / ${visible.length}`;
+  document.getElementById('prevBtn').disabled = currentIndex === 0;
+  document.getElementById('nextBtn').disabled = currentIndex === visible.length - 1;
+
+  if (visible.length <= 40) {
+    dots.innerHTML = visible.map((c, i) =>
+      `<div class="dot ${c.type === 'link' ? 'link-dot' : ''} ${i === currentIndex ? 'active' : ''}" onclick="goTo(${i})" title="${esc(c.title)}"></div>`
+    ).join('');
+  } else {
+    dots.innerHTML = '';
+  }
+
+  const card = visible[currentIndex];
+
+  document.body.classList.remove('header-hidden');
+  updateHeaderActions();
+
+  if (card.type === 'link' && card.url) {
+    renderLinkView(card);
+  } else {
+    renderTaskView(card);
+  }
+
+  save();
+}
+
+function renderLinkView(card) {
+  const main = document.getElementById('main');
+  const tagsHtml = (card.tags || []).map(t => `<span class="tag" onclick="setStackFilter('${esc(t)}')">${esc(t)}</span>`).join('');
+
+  main.innerHTML = `
+    <div class="iframe-container" id="iframeContainer">
+      <iframe src="${esc(card.url)}" id="pageFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="eager"></iframe>
+      <div class="iframe-nudge" id="iframeNudge">
+        Page not loading?
+        <a href="${esc(card.url)}" target="_blank" rel="noopener">Open in new tab &#8599;</a>
+        <button class="nudge-convert" onclick="convertToTask()">Convert to task</button>
+        <button class="nudge-dismiss" onclick="dismissNudge()" title="Dismiss">&times;</button>
+      </div>
+    </div>`;
+
+  // Iframe block detection.
+  // We can't reliably distinguish cross-origin loaded vs X-Frame-Options blocked,
+  // so we show a brief auto-dismissing nudge after load, and use a timeout fallback
+  // for pages where load never fires.
+  const iframe = document.getElementById('pageFrame');
+  let resolved = false;
+
+  iframe.addEventListener('load', () => {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(blockTimer);
+    // Show nudge briefly — if page loaded, user won't need it; if blocked, it helps
+    const nudge = document.getElementById('iframeNudge');
+    if (nudge) {
+      nudge.classList.add('visible');
+      // Auto-hide after 6 seconds if user doesn't interact
+      nudge._autoHide = setTimeout(() => nudge.classList.remove('visible'), 6000);
+    }
+  });
+
+  iframe.addEventListener('error', () => {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(blockTimer);
+    showBlockedFallback(card);
+  });
+
+  // If load never fires within 10 seconds, page is likely completely blocked
+  const blockTimer = setTimeout(() => {
+    if (!resolved) {
+      resolved = true;
+      showBlockedFallback(card);
+    }
+  }, 10000);
+
+}
+
+function showBlockedFallback(card) {
+  const main = document.getElementById('main');
+  const tagsHtml = (card.tags || []).map(t => `<span class="tag" onclick="setStackFilter('${esc(t)}')">${esc(t)}</span>`).join('');
+
+  main.innerHTML = `
+    <div class="blocked-view" id="blockedView">
+      <div class="blocked-card">
+        <div class="blocked-icon">&#128275;</div>
+        <div class="blocked-title">${esc(card.title)}</div>
+        <div class="blocked-url">${esc(card.url)}</div>
+        ${tagsHtml ? `<div class="blocked-tags">${tagsHtml}</div>` : ''}
+        ${card.notes ? `<div class="blocked-notes">${esc(card.notes)}</div>` : ''}
+        <div class="blocked-actions">
+          <a href="${esc(card.url)}" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none;">Open in Browser &#8599;</a>
+          <button class="btn btn-secondary" onclick="convertToTask()">Convert to task</button>
+        </div>
+      </div>
+      <div class="scroll-done-prompt" id="scrollDonePrompt">
+        Finished with this?
+        <button class="btn btn-bookmark btn-sm" onclick="retireCard()">&#9733; Retire</button>
+        <button class="btn btn-danger btn-sm" onclick="removeCard()">Done</button>
+      </div>
+    </div>`;
+
+  setupScrollDoneDetection('blockedView');
+}
+
+function setupScrollDoneDetection(containerId) {
+  const container = document.getElementById(containerId);
+  const prompt = document.getElementById('scrollDonePrompt');
+  if (!container || !prompt) return;
+
+  container.addEventListener('scroll', () => {
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 40;
+    prompt.classList.toggle('visible', atBottom);
+  });
+}
+
+function dismissNudge() {
+  const nudge = document.getElementById('iframeNudge');
+  if (nudge) {
+    if (nudge._autoHide) clearTimeout(nudge._autoHide);
+    nudge.classList.remove('visible');
+  }
+}
+
+
+function renderTaskView(card) {
+  const main = document.getElementById('main');
+  const tagsHtml = (card.tags || []).map(t => `<span class="tag" onclick="setStackFilter('${esc(t)}')">${esc(t)}</span>`).join('');
+
+  main.innerHTML = `
+    <div class="task-view" id="taskView">
+      <div class="card-container">
+        <div class="card">
+          <div class="card-type-badge">&#9998; Task</div>
+          <div class="card-title">${esc(card.title)}</div>
+          ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ''}
+          ${card.notes ? `<div class="card-notes">${esc(card.notes)}</div>` : '<div class="card-notes" style="flex:1;"></div>'}
+          ${card.url ? `<div style="margin-bottom:16px;"><a href="${esc(card.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.85rem;">&#128279; ${esc(card.url)}</a></div>` : ''}
+          <div class="card-actions mobile-only">
+            <button class="btn btn-secondary" onclick="editCard()">Edit</button>
+            <button class="btn btn-bookmark" onclick="retireCard()">&#9733; Retire</button>
+            <button class="btn btn-danger" onclick="removeCard()">&#10005; Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="scroll-done-prompt" id="scrollDonePrompt">
+        Finished with this?
+        <button class="btn btn-bookmark btn-sm" onclick="retireCard()">&#9733; Retire</button>
+        <button class="btn btn-danger btn-sm" onclick="removeCard()">Done</button>
+      </div>
+      <div class="keyboard-hints">
+        <span><kbd>&#8592;</kbd><kbd>&#8594;</kbd> navigate</span>
+        <span><kbd>N</kbd> new</span>
+        <span><kbd>T</kbd> to-dos</span>
+        <span><kbd>F</kbd> filter</span>
+        <span><kbd>R</kbd> retire</span>
+      </div>
+    </div>`;
+
+  setupScrollDoneDetection('taskView');
+}
+
+// ─── Navigation ───
+function next() { const v = getVisibleStack(); if (currentIndex < v.length - 1) { currentIndex++; render(); } }
+function prev() { if (currentIndex > 0) { currentIndex--; render(); } }
+function goTo(i) { currentIndex = i; render(); }
+
+// Get real index in `stack` for the current visible card
+function realIndex() {
+  const visible = getVisibleStack();
+  if (!visible[currentIndex]) return -1;
+  if (!stackFilter) return currentIndex;
+  return stack.indexOf(visible[currentIndex]);
+}
+
+// ─── Card CRUD ───
+function openModal(editing) {
+  const ri = realIndex();
+  editingId = editing ? stack[ri]?.id : null;
+  document.getElementById('modalTitle').textContent = editing ? 'Edit Card' : 'Add to Stack';
+  document.getElementById('modalSave').textContent = editing ? 'Save' : 'Add';
+
+  if (editing && stack[ri]) {
+    const c = stack[ri];
+    document.getElementById('cardType').value = c.type;
+    document.getElementById('cardTitleInput').value = c.title;
+    document.getElementById('cardUrlInput').value = c.url || '';
+    document.getElementById('cardTagsInput').value = (c.tags || []).join(' ');
+    document.getElementById('cardNotesInput').value = c.notes || '';
+  } else {
+    document.getElementById('cardType').value = 'link';
+    document.getElementById('cardTitleInput').value = '';
+    document.getElementById('cardUrlInput').value = '';
+    document.getElementById('cardTagsInput').value = '';
+    document.getElementById('cardNotesInput').value = '';
+  }
+
+  toggleUrlField();
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('cardTitleInput').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  editingId = null;
+}
+
+function toggleUrlField() {
+  const isLink = document.getElementById('cardType').value === 'link';
+  document.getElementById('urlGroup').style.display = isLink ? 'block' : 'none';
+  document.getElementById('cardTitleLabel').textContent = isLink ? 'Title' : 'Task Name';
+  document.getElementById('cardTitleInput').placeholder = isLink ? 'e.g. CSS Grid Tutorial' : 'e.g. Review PR #42';
+}
+
+function saveCard() {
+  const type = document.getElementById('cardType').value;
+  const title = document.getElementById('cardTitleInput').value.trim();
+  const url = document.getElementById('cardUrlInput').value.trim();
+  const tags = parseTags(document.getElementById('cardTagsInput').value);
+  const notes = document.getElementById('cardNotesInput').value.trim();
+
+  if (!title) { document.getElementById('cardTitleInput').focus(); return; }
+  if (type === 'link' && !url) { document.getElementById('cardUrlInput').focus(); return; }
+
+  if (editingId) {
+    const idx = stack.findIndex(c => c.id === editingId);
+    if (idx !== -1) {
+      stack[idx] = { ...stack[idx], type, title, url: type === 'link' ? url : '', tags, notes };
+    }
+  } else {
+    stack.push({
+      id: uid(), type, title,
+      url: type === 'link' ? url : '',
+      tags, notes, created: Date.now()
+    });
+    currentIndex = stack.length - 1;
+  }
+
+  closeModal();
+  render();
+  renderTodos();
+}
+
+function editCard() { openModal(true); }
+
+function removeCard() {
+  const ri = realIndex();
+  if (ri === -1) return;
+  stack.splice(ri, 1);
+  const visible = getVisibleStack();
+  if (currentIndex >= visible.length) currentIndex = Math.max(0, visible.length - 1);
+  render();
+  renderTodos();
+}
+
+function moveCard(dir) {
+  const ri = realIndex();
+  if (ri === -1) return;
+  const newRi = ri + dir;
+  if (newRi < 0 || newRi >= stack.length) return;
+  [stack[ri], stack[newRi]] = [stack[newRi], stack[ri]];
+  if (!stackFilter) currentIndex = newRi;
+  render();
+}
+
+// ─── Retire (bookmark) ───
+function retireCard() {
+  const ri = realIndex();
+  const card = stack[ri];
+  if (!card) return;
+
+  const tags = card.tags && card.tags.length > 0 ? card.tags : ['#untagged'];
+  const bmEntry = {
+    id: card.id, title: card.title, type: card.type,
+    url: card.url || '', tags: card.tags || [],
+    notes: card.notes || '', retired: Date.now()
+  };
+
+  tags.forEach(tag => {
+    if (!bookmarks[tag]) bookmarks[tag] = [];
+    if (!bookmarks[tag].some(b => b.id === card.id)) {
+      bookmarks[tag].push(bmEntry);
+    }
+  });
+
+  stack.splice(ri, 1);
+  const visible = getVisibleStack();
+  if (currentIndex >= visible.length) currentIndex = Math.max(0, visible.length - 1);
+
+  save();
+  render();
+  renderTodos();
+  renderBookmarks();
+}
+
+// ─── Sidebar ───
+function toggleSidebar(panel) {
+  const isOpen = document.getElementById('sidebar').classList.contains('open');
+  if (isOpen && !panel) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+    return;
+  }
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+  if (panel) switchSidebarTab(panel);
+  renderTodos();
+  renderBookmarks();
+  if (!panel || panel === 'todos') {
+    setTimeout(() => document.getElementById('todoInput').focus(), 200);
+  }
+}
+
+function switchSidebarTab(panel) {
+  document.querySelectorAll('.sidebar-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.panel === panel));
+  document.querySelectorAll('.sidebar-panel').forEach(p =>
+    p.classList.toggle('active', p.id === 'panel' + panel.charAt(0).toUpperCase() + panel.slice(1)));
+}
+
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  const filtersEl = document.getElementById('tagFilters');
+
+  const tags = allTags();
+  if (tags.length > 0) {
+    filtersEl.style.display = 'flex';
+    filtersEl.innerHTML =
+      `<button class="tag-filter ${activeTagFilter === null ? 'active' : ''}" onclick="setTagFilter(null)">All</button>` +
+      tags.map(t =>
+        `<button class="tag-filter ${activeTagFilter === t ? 'active' : ''}" onclick="setTagFilter('${esc(t)}')">${esc(t)}</button>`
+      ).join('');
+  } else {
+    filtersEl.style.display = 'none';
+    filtersEl.innerHTML = '';
+  }
+
+  let html = '';
+
+  const stackItems = stack.filter(c =>
+    (c.tags && c.tags.length > 0) &&
+    (activeTagFilter === null || c.tags.includes(activeTagFilter))
+  );
+
+  if (stackItems.length > 0) {
+    html += '<div class="todo-section-label">From Stack</div>';
+    stackItems.forEach(c => {
+      const tagsHtml = (c.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+      const idx = stack.indexOf(c);
+      html += `
+        <div class="todo-item">
+          <input type="checkbox" onchange="removeCardByIdx(${idx})" title="Mark done & remove" />
+          <div class="todo-item-content">
+            <label onclick="goToAndClose(${idx})">${esc(c.title)}</label>
+            ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
+          </div>
+          <div class="todo-actions">
+            <button class="todo-action-btn" onclick="goToAndClose(${idx})" title="Go to card">&#8594;</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  const filteredTodos = todos.filter(t =>
+    activeTagFilter === null || (t.tags && t.tags.includes(activeTagFilter))
+  );
+
+  if (filteredTodos.length > 0 || stackItems.length > 0) {
+    html += '<div class="todo-section-label">Quick To-Dos</div>';
+  }
+
+  if (filteredTodos.length > 0) {
+    filteredTodos.forEach(t => {
+      const realIdx = todos.indexOf(t);
+      const tagsHtml = (t.tags || []).map(tg => `<span class="tag">${esc(tg)}</span>`).join('');
+      html += `
+        <div class="todo-item ${t.done ? 'done' : ''}">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo(${realIdx})" />
+          <div class="todo-item-content">
+            <label onclick="toggleTodo(${realIdx})">${esc(t.text)}</label>
+            ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
+          </div>
+          <div class="todo-actions">
+            <button class="todo-action-btn" onclick="deleteTodo(${realIdx})" title="Delete">&times;</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  if (!html) {
+    html = '<div class="todo-empty">No items yet. Add cards with tags<br>or create quick to-dos above.</div>';
+  }
+
+  list.innerHTML = html;
+}
+
+function renderBookmarks() {
+  const list = document.getElementById('bookmarksList');
+  const folders = Object.keys(bookmarks).sort();
+
+  if (folders.length === 0) {
+    list.innerHTML = '<div class="todo-empty">No bookmarks yet.<br>Retire cards from the stack to save them here.</div>';
+    return;
+  }
+
+  let html = '';
+  folders.forEach(folder => {
+    const items = bookmarks[folder];
+    if (!items || items.length === 0) return;
+
+    html += `<div class="bm-folder open">
+      <div class="bm-folder-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="bm-folder-arrow">&#9654;</span>
+        <span>${esc(folder)}</span>
+        <span class="bm-folder-count">(${items.length})</span>
+      </div>
+      <div class="bm-folder-items">`;
+
+    items.forEach((bm, i) => {
+      const href = bm.url ? esc(bm.url) : '#';
+      const target = bm.url ? ' target="_blank" rel="noopener"' : '';
+      html += `
+        <div class="bm-item">
+          <a href="${href}"${target} draggable="true" title="Drag to bookmarks bar — ${esc(bm.notes || bm.title)}">${esc(bm.title)}</a>
+          <div class="bm-actions">
+            <button class="bm-restore-btn" onclick="restoreBookmark('${esc(folder)}', ${i})" title="Restore to stack">&#8634;</button>
+            <button class="bm-delete-btn" onclick="deleteBookmark('${esc(folder)}', ${i})" title="Delete">&times;</button>
+          </div>
+        </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  list.innerHTML = html;
+}
+
+function restoreBookmark(folder, idx) {
+  const bm = bookmarks[folder]?.[idx];
+  if (!bm) return;
+
+  stack.push({
+    id: uid(), type: bm.type || 'link', title: bm.title,
+    url: bm.url || '', tags: bm.tags || [], notes: bm.notes || '',
+    created: Date.now()
+  });
+  currentIndex = stack.length - 1;
+
+  const bmId = bm.id;
+  Object.keys(bookmarks).forEach(f => {
+    bookmarks[f] = bookmarks[f].filter(b => b.id !== bmId);
+    if (bookmarks[f].length === 0) delete bookmarks[f];
+  });
+
+  save(); render(); renderTodos(); renderBookmarks();
+}
+
+function deleteBookmark(folder, idx) {
+  const bm = bookmarks[folder]?.[idx];
+  if (!bm) return;
+
+  const bmId = bm.id;
+  Object.keys(bookmarks).forEach(f => {
+    bookmarks[f] = bookmarks[f].filter(b => b.id !== bmId);
+    if (bookmarks[f].length === 0) delete bookmarks[f];
+  });
+
+  save(); renderBookmarks();
+}
+
+function setTagFilter(tag) { activeTagFilter = tag; renderTodos(); }
+
+function goToAndClose(idx) {
+  currentIndex = idx;
+  render();
+  toggleSidebar();
+}
+
+function removeCardByIdx(idx) {
+  stack.splice(idx, 1);
+  if (currentIndex >= stack.length) currentIndex = Math.max(0, stack.length - 1);
+  save(); render(); renderTodos();
+}
+
+function addTodo() {
+  const input = document.getElementById('todoInput');
+  const raw = input.value.trim();
+  if (!raw) return;
+
+  const inlineTags = [];
+  const text = raw.replace(/#(\w+)/g, (_, tag) => {
+    inlineTags.push('#' + tag.toLowerCase());
+    return '';
+  }).trim();
+
+  todos.push({ id: uid(), text: text || raw, tags: [...new Set(inlineTags)], done: false });
+  input.value = '';
+  save(); renderTodos();
+}
+
+function toggleTodo(i) { todos[i].done = !todos[i].done; save(); renderTodos(); }
+function deleteTodo(i) { todos.splice(i, 1); save(); renderTodos(); }
+
+// ─── Stack Tag Filter ───
+let stackFilter = null;
+let filteredStack = null;
+
+function setStackFilter(tag) {
+  stackFilter = tag;
+  applyStackFilter();
+  render();
+  const bar = document.getElementById('stackFilterBar');
+  const label = document.getElementById('stackFilterTag');
+  bar.style.display = 'flex';
+  label.innerHTML = `<span class="tag">${esc(tag)}</span>`;
+}
+
+function clearStackFilter() {
+  stackFilter = null;
+  filteredStack = null;
+  document.getElementById('stackFilterBar').style.display = 'none';
+  currentIndex = 0;
+  render();
+}
+
+function applyStackFilter() {
+  if (!stackFilter) { filteredStack = null; return; }
+  filteredStack = stack.filter(c => (c.tags || []).includes(stackFilter));
+}
+
+function getVisibleStack() {
+  return filteredStack || stack;
+}
+
+function promptStackFilter() {
+  const tags = allTags();
+  if (tags.length === 0) return;
+  const tag = prompt('Filter stack by tag:\n\nAvailable: ' + tags.join(', '));
+  if (!tag) return;
+  const normalized = tag.startsWith('#') ? tag : '#' + tag;
+  if (tags.includes(normalized)) setStackFilter(normalized);
+  else alert('Tag "' + normalized + '" not found.');
+}
+
+// ─── Convert Link to Task ───
+function convertToTask() {
+  const ri = realIndex();
+  const card = stack[ri];
+  if (!card) return;
+  card.type = 'task';
+  card.notes = (card.notes ? card.notes + '\n\n' : '') + 'URL: ' + (card.url || '');
+  save();
+  render();
+}
+
+// ─── Export / Import ───
+function exportData() {
+  const data = {
+    version: 1,
+    exported: new Date().toISOString(),
+    stack_cards: stack,
+    stack_todos: todos,
+    stack_bookmarks: bookmarks,
+    stack_index: currentIndex
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `stack-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (data.stack_cards) stack = data.stack_cards;
+      if (data.stack_todos) todos = data.stack_todos;
+      if (data.stack_bookmarks) bookmarks = data.stack_bookmarks;
+      if (typeof data.stack_index === 'number') currentIndex = data.stack_index;
+      save();
+      render();
+      renderTodos();
+      renderBookmarks();
+      alert('Data imported successfully!');
+    } catch (e) {
+      alert('Invalid backup file: ' + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ─── Event Listeners ───
+document.getElementById('addBtn').addEventListener('click', () => openModal());
+document.getElementById('todoBtn').addEventListener('click', () => toggleSidebar('todos'));
+document.getElementById('bmBtn').addEventListener('click', () => toggleSidebar('bookmarks'));
+document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar());
+document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar());
+document.getElementById('modalCancel').addEventListener('click', closeModal);
+document.getElementById('modalSave').addEventListener('click', saveCard);
+document.getElementById('cardType').addEventListener('change', toggleUrlField);
+document.getElementById('addTodoBtn').addEventListener('click', addTodo);
+document.getElementById('todoInput').addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+document.getElementById('importFile').addEventListener('change', e => {
+  if (e.target.files[0]) importData(e.target.files[0]);
+  e.target.value = '';
+});
+
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+document.querySelectorAll('#cardTitleInput, #cardUrlInput').forEach(el => {
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') saveCard(); });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (document.getElementById('modalOverlay').classList.contains('open')) {
+    if (e.key === 'Escape') closeModal();
+    return;
+  }
+  if (document.getElementById('sidebar').classList.contains('open')) {
+    if (e.key === 'Escape') toggleSidebar();
+    return;
+  }
+
+  switch (e.key) {
+    case 'ArrowRight': case 'l': case 'j': next(); break;
+    case 'ArrowLeft': case 'h': case 'k': prev(); break;
+    case 'n': case 'a': openModal(); break;
+    case 't': toggleSidebar('todos'); break;
+    case 'b': toggleSidebar('bookmarks'); break;
+    case 'o':
+      if (stack[currentIndex]?.type === 'link' && stack[currentIndex]?.url)
+        window.open(stack[currentIndex].url, '_blank');
+      break;
+    case 'r': if (stack.length) retireCard(); break;
+    case 'd': case 'Backspace': if (stack.length) removeCard(); break;
+    case 'e': if (stack.length) editCard(); break;
+    case 'f': promptStackFilter(); break;
+    case 'Escape': if (stackFilter) { clearStackFilter(); e.preventDefault(); } break;
+  }
+});
+
+// ─── Init ───
+render();
+renderTodos();
+</script>
+</body>
+</html>
