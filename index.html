@@ -610,6 +610,21 @@
   .todo-item.dragging { opacity: 0.3; }
   .todo-item.drag-over { border-top: 2px solid var(--accent); }
 
+  .drop-zone { min-height: 20px; border-radius: 6px; transition: background 0.2s; }
+  .drop-zone-active { background: rgba(239,68,68,0.08); }
+  .drop-zone-hint { display: none; text-align: center; font-size: 0.72rem; color: var(--text-muted); padding: 8px 0; }
+  .drop-zone-active .drop-zone-hint { display: block; }
+  .todo-empty-zone { text-align: center; font-size: 0.78rem; color: var(--text-muted); padding: 12px 0; opacity: 0.6; }
+
+  .schema-help { margin-top: 8px; font-size: 0.78rem; color: var(--text-muted); }
+  .schema-help summary { cursor: pointer; user-select: none; }
+  .schema-help summary:hover { color: var(--text); }
+  .schema-help pre {
+    margin-top: 8px; padding: 12px; border-radius: 6px;
+    background: rgba(0,0,0,0.3); font-size: 0.72rem; line-height: 1.5;
+    overflow-x: auto; white-space: pre; color: var(--text-muted);
+  }
+
   .todo-item-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
 
   .todo-playlist-parent { cursor: pointer; }
@@ -911,25 +926,6 @@
 
 <input type="file" id="importFile" accept=".json" style="display:none;" />
 
-<!-- ── Study Plan Import Modal ── -->
-<div class="modal-overlay" id="studyPlanOverlay">
-  <div class="modal">
-    <h2>Import Claude Study Plan</h2>
-    <div class="form-group">
-      <label>Paste study plan JSON from Claude</label>
-      <textarea id="studyPlanInput" rows="10" style="font-family:'SF Mono','Menlo',monospace; font-size:0.78rem;"></textarea>
-    </div>
-    <div id="studyPlanError" style="color:var(--accent); font-size:0.8rem; margin-bottom:12px; display:none;"></div>
-    <div class="form-group">
-      <label>Tags (optional)</label>
-      <input type="text" id="studyPlanTags" placeholder="#study #learning" />
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeStudyPlanImport()">Cancel</button>
-      <button class="btn btn-primary" onclick="importStudyPlan()">Import</button>
-    </div>
-  </div>
-</div>
 
 <!-- ── Sidebar ── -->
 <div class="notes-overlay" id="notesOverlay"></div>
@@ -954,7 +950,7 @@
   <div class="sidebar-panel active" id="panelTodos">
     <div class="tag-filters" id="tagFilters"></div>
     <div class="todo-input-row">
-      <input type="text" id="todoInput" placeholder="Add a quick to-do..." />
+      <input type="text" id="todoInput" placeholder="Add to inbox..." />
       <button class="btn btn-primary btn-sm" id="addTodoBtn">+</button>
     </div>
     <div class="todo-list" id="todoList"></div>
@@ -965,7 +961,6 @@
   <div class="sidebar-footer">
     <button class="btn btn-secondary" onclick="exportData()" title="Download all data as JSON">&#8615; Export</button>
     <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" title="Restore from JSON backup">&#8613; Import</button>
-    <button class="btn btn-secondary" onclick="openStudyPlanImport()" title="Import Claude study plan">&#128218; Study Plan</button>
   </div>
 </div>
 
@@ -978,6 +973,7 @@
       <select id="cardType">
         <option value="link">Webpage / Link</option>
         <option value="task">Task / Note</option>
+        <option value="studyplan">Claude Study Plan</option>
       </select>
     </div>
     <div class="form-group">
@@ -997,6 +993,34 @@
       <label>Notes (optional)</label>
       <textarea id="cardNotesInput" placeholder="Why you saved this, key sections to read..."></textarea>
     </div>
+    <div class="form-group" id="studyPlanGroup" style="display:none;">
+      <label>Paste study plan JSON from Claude</label>
+      <textarea id="studyPlanJsonInput" rows="10" style="font-family:'SF Mono','Menlo',monospace; font-size:0.78rem;" placeholder='{"plan":{"title":"...","exercises":[...]}}'></textarea>
+      <div id="studyPlanError" style="color:var(--accent); font-size:0.8rem; margin-top:6px; display:none;"></div>
+      <details class="schema-help">
+        <summary>Show expected format</summary>
+        <pre id="schemaExample">{
+  "plan": {
+    "title": "Your Study Plan Title",
+    "description": "Optional overview",
+    "exercises": [
+      {
+        "id": "ex1",
+        "phase": "Phase 1: Basics",
+        "title": "Exercise title",
+        "description": "What to do",
+        "time_estimate": "30 minutes",
+        "data_sources": ["source1", "source2"],
+        "links": [
+          { "url": "https://...", "description": "Resource" }
+        ]
+      }
+    ]
+  }
+}</pre>
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('schemaExample').textContent)" style="margin-top:6px;">Copy schema</button>
+      </details>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="modalCancel">Cancel</button>
       <button class="btn btn-primary" id="modalSave">Add</button>
@@ -1006,13 +1030,27 @@
 
 <script>
 // ─── Schema Version & Migrations ───
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 function migrateData() {
   const stored = parseInt(localStorage.getItem('stack_schema_version') || '0', 10);
   if (stored < SCHEMA_VERSION) {
-    // Future migrations go here:
-    // if (stored < 2) { /* migrate v1 → v2 */ }
+    // v1 → v2: Convert quick todos {text, tags, done} to inbox cards {id, type, title, ...}
+    if (stored < 2) {
+      const oldTodos = JSON.parse(localStorage.getItem('stack_todos') || '[]');
+      const inbox = oldTodos.map(t => ({
+        id: t.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+        type: 'task',
+        title: t.text || t.title || '',
+        url: t.url || '',
+        tags: t.tags || [],
+        notes: t.notes || '',
+        created: t.created || Date.now(),
+        inboxDone: t.done || false
+      }));
+      localStorage.setItem('stack_inbox', JSON.stringify(inbox));
+      localStorage.removeItem('stack_todos');
+    }
     localStorage.setItem('stack_schema_version', SCHEMA_VERSION);
   }
 }
@@ -1020,7 +1058,7 @@ function migrateData() {
 // ─── State ───
 migrateData();
 let stack = JSON.parse(localStorage.getItem('stack_cards') || '[]');
-let todos = JSON.parse(localStorage.getItem('stack_todos') || '[]');
+let inbox = JSON.parse(localStorage.getItem('stack_inbox') || '[]');
 let archive = JSON.parse(localStorage.getItem('stack_bookmarks') || '{}');
 let currentIndex = parseInt(localStorage.getItem('stack_index') || '0', 10);
 let editingId = null;
@@ -1029,7 +1067,7 @@ let expandedPlaylists = new Set();
 
 function save() {
   localStorage.setItem('stack_cards', JSON.stringify(stack));
-  localStorage.setItem('stack_todos', JSON.stringify(todos));
+  localStorage.setItem('stack_inbox', JSON.stringify(inbox));
   localStorage.setItem('stack_bookmarks', JSON.stringify(archive));
   localStorage.setItem('stack_index', currentIndex);
   localStorage.setItem('stack_schema_version', SCHEMA_VERSION);
@@ -1055,7 +1093,7 @@ function parseTags(str) {
 function allTags() {
   const tags = new Set();
   stack.forEach(c => (c.tags || []).forEach(t => tags.add(t)));
-  todos.forEach(t => (t.tags || []).forEach(tg => tags.add(tg)));
+  inbox.forEach(c => (c.tags || []).forEach(tg => tags.add(tg)));
   return [...tags].sort();
 }
 
@@ -1620,9 +1658,19 @@ function openModal(editing) {
     document.getElementById('cardNotesInput').value = '';
   }
 
+  document.getElementById('studyPlanJsonInput').value = '';
+  document.getElementById('studyPlanError').style.display = 'none';
+  // Hide studyplan option when editing (can't convert existing card to study plan)
+  const spOpt = document.querySelector('#cardType option[value="studyplan"]');
+  spOpt.style.display = editing ? 'none' : '';
+
   toggleUrlField();
   document.getElementById('modalOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('cardTitleInput').focus(), 100);
+  setTimeout(() => {
+    const val = document.getElementById('cardType').value;
+    if (val === 'studyplan') document.getElementById('studyPlanJsonInput').focus();
+    else document.getElementById('cardTitleInput').focus();
+  }, 100);
 }
 
 function closeModal() {
@@ -1631,14 +1679,56 @@ function closeModal() {
 }
 
 function toggleUrlField() {
-  const isLink = document.getElementById('cardType').value === 'link';
+  const val = document.getElementById('cardType').value;
+  const isLink = val === 'link';
+  const isStudyPlan = val === 'studyplan';
   document.getElementById('urlGroup').style.display = isLink ? 'block' : 'none';
+  document.getElementById('studyPlanGroup').style.display = isStudyPlan ? 'block' : 'none';
+  // Hide title/notes for study plan (extracted from JSON)
+  document.getElementById('cardTitleInput').parentElement.style.display = isStudyPlan ? 'none' : '';
+  document.getElementById('cardNotesInput').parentElement.style.display = isStudyPlan ? 'none' : '';
   document.getElementById('cardTitleLabel').textContent = isLink ? 'Title' : 'Task Name';
   document.getElementById('cardTitleInput').placeholder = isLink ? 'e.g. CSS Grid Tutorial' : 'e.g. Review PR #42';
+  // Clear error when switching
+  document.getElementById('studyPlanError').style.display = 'none';
 }
 
 function saveCard() {
   const type = document.getElementById('cardType').value;
+
+  // Handle study plan import
+  if (type === 'studyplan') {
+    const raw = document.getElementById('studyPlanJsonInput').value.trim();
+    const errEl = document.getElementById('studyPlanError');
+    const tags = parseTags(document.getElementById('cardTagsInput').value);
+    if (!raw) { document.getElementById('studyPlanJsonInput').focus(); return; }
+    try {
+      const data = JSON.parse(raw);
+      const plan = data.plan || data;
+      if (!plan.title || !plan.exercises || !Array.isArray(plan.exercises)) {
+        throw new Error('Missing plan.title or plan.exercises array');
+      }
+      const card = {
+        id: uid(), type: 'task', title: plan.title, url: '',
+        tags, notes: plan.description || '', created: Date.now(),
+        studyPlan: true,
+        exercises: plan.exercises.map(ex => ({
+          id: ex.id || uid(), phase: ex.phase || '', title: ex.title || '',
+          description: ex.description || '', timeEstimate: ex.time_estimate || '',
+          dataSources: ex.data_sources || [], links: ex.links || [], done: false
+        }))
+      };
+      stack.push(card);
+      currentIndex = stack.length - 1;
+      closeModal();
+      save(); render(); renderTodos();
+    } catch (e) {
+      errEl.textContent = 'Invalid JSON: ' + e.message;
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
   const title = document.getElementById('cardTitleInput').value.trim();
   const url = document.getElementById('cardUrlInput').value.trim();
   const tags = parseTags(document.getElementById('cardTagsInput').value);
@@ -1680,57 +1770,6 @@ function saveCard() {
 
 function editCard() { openModal(true); }
 
-// ─── Study Plan Import ───
-function openStudyPlanImport() {
-  document.getElementById('studyPlanInput').value = '';
-  document.getElementById('studyPlanTags').value = '';
-  document.getElementById('studyPlanError').style.display = 'none';
-  document.getElementById('studyPlanOverlay').classList.add('open');
-  document.getElementById('studyPlanInput').focus();
-}
-
-function closeStudyPlanImport() {
-  document.getElementById('studyPlanOverlay').classList.remove('open');
-}
-
-function importStudyPlan() {
-  const raw = document.getElementById('studyPlanInput').value.trim();
-  const errEl = document.getElementById('studyPlanError');
-  try {
-    const data = JSON.parse(raw);
-    const plan = data.plan || data;
-    if (!plan.title || !plan.exercises || !Array.isArray(plan.exercises)) {
-      throw new Error('Missing plan.title or plan.exercises array');
-    }
-    const tags = parseTags(document.getElementById('studyPlanTags').value);
-    const card = {
-      id: uid(), type: 'task',
-      title: plan.title,
-      url: '',
-      tags,
-      notes: plan.description || '',
-      created: Date.now(),
-      studyPlan: true,
-      exercises: plan.exercises.map(ex => ({
-        id: ex.id || uid(),
-        phase: ex.phase || '',
-        title: ex.title || '',
-        description: ex.description || '',
-        timeEstimate: ex.time_estimate || '',
-        dataSources: ex.data_sources || [],
-        links: ex.links || [],
-        done: false
-      }))
-    };
-    stack.push(card);
-    currentIndex = stack.length - 1;
-    closeStudyPlanImport();
-    save(); render(); renderTodos();
-  } catch (e) {
-    errEl.textContent = 'Invalid JSON: ' + e.message;
-    errEl.style.display = 'block';
-  }
-}
 
 function removeCard() {
   const ri = realIndex();
@@ -1826,25 +1865,27 @@ function renderTodos() {
 
   let html = '';
 
+  // ── Stack section ──
   const stackItems = stack.filter(c =>
     activeTagFilter === null || (c.tags && c.tags.includes(activeTagFilter))
   );
 
+  html += '<div class="todo-section-label">Stack</div>';
+  html += '<div class="drop-zone" data-zone="stack"><div class="drop-zone-hint">Drop here to add to stack</div>';
+
   if (stackItems.length > 0) {
-    html += '<div class="todo-section-label">From Stack</div>';
     stackItems.forEach(c => {
       const tagsHtml = (c.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
       const idx = stack.indexOf(c);
 
       if (c.playlistId) {
-        // YouTube playlist — collapsible parent with video children
         const vids = c.playlistVideos || [];
         const watchedCount = vids.filter(v => v.watched).length;
         const totalCount = vids.length;
         const allDone = totalCount > 0 && watchedCount === totalCount;
         const expanded = expandedPlaylists.has(c.id);
         html += `
-          <div class="todo-item todo-playlist-parent ${allDone ? 'done' : ''}" draggable="true" data-stack-idx="${idx}" onclick="togglePlaylistExpand('${c.id}')">
+          <div class="todo-item todo-playlist-parent ${allDone ? 'done' : ''}" draggable="true" data-source="stack" data-stack-idx="${idx}" onclick="togglePlaylistExpand('${c.id}')">
             <span class="playlist-expand-arrow ${expanded ? 'expanded' : ''}">&#9654;</span>
             <div class="todo-item-content">
               <label onclick="event.stopPropagation(); goToAndClose(${idx})">${esc(c.title)}</label>
@@ -1867,13 +1908,12 @@ function renderTodos() {
           });
         }
       } else if (c.studyPlan && c.exercises) {
-        // Study plan — collapsible parent with exercise children
         const exs = c.exercises;
         const doneCount = exs.filter(e => e.done).length;
         const allDone = exs.length > 0 && doneCount === exs.length;
         const expanded = expandedPlaylists.has(c.id);
         html += `
-          <div class="todo-item todo-playlist-parent ${allDone ? 'done' : ''}" draggable="true" data-stack-idx="${idx}" onclick="togglePlaylistExpand('${c.id}')">
+          <div class="todo-item todo-playlist-parent ${allDone ? 'done' : ''}" draggable="true" data-source="stack" data-stack-idx="${idx}" onclick="togglePlaylistExpand('${c.id}')">
             <span class="playlist-expand-arrow ${expanded ? 'expanded' : ''}">&#9654;</span>
             <div class="todo-item-content">
               <label onclick="event.stopPropagation(); goToAndClose(${idx})">${esc(c.title)}</label>
@@ -1896,9 +1936,8 @@ function renderTodos() {
           });
         }
       } else {
-        // Regular card
         html += `
-          <div class="todo-item" draggable="true" data-stack-idx="${idx}">
+          <div class="todo-item" draggable="true" data-source="stack" data-stack-idx="${idx}">
             <input type="checkbox" onchange="removeCardByIdx(${idx})" title="Mark done & remove" />
             <div class="todo-item-content">
               <label onclick="goToAndClose(${idx})">${esc(c.title)}</label>
@@ -1910,81 +1949,147 @@ function renderTodos() {
           </div>`;
       }
     });
+  } else {
+    html += '<div class="todo-empty-zone">No active cards</div>';
   }
 
-  const filteredTodos = todos.filter(t =>
-    activeTagFilter === null || (t.tags && t.tags.includes(activeTagFilter))
+  html += '</div>'; // close stack drop-zone
+
+  // ── Inbox section ──
+  const inboxItems = inbox.filter(c =>
+    activeTagFilter === null || (c.tags && c.tags.includes(activeTagFilter))
   );
 
-  if (filteredTodos.length > 0 || stackItems.length > 0) {
-    html += '<div class="todo-section-label">Quick To-Dos</div>';
-  }
+  html += '<div class="todo-section-label">Inbox</div>';
+  html += '<div class="drop-zone" data-zone="inbox"><div class="drop-zone-hint">Drop here to move to inbox</div>';
 
-  if (filteredTodos.length > 0) {
-    filteredTodos.forEach(t => {
-      const realIdx = todos.indexOf(t);
-      const tagsHtml = (t.tags || []).map(tg => `<span class="tag">${esc(tg)}</span>`).join('');
+  if (inboxItems.length > 0) {
+    inboxItems.forEach(c => {
+      const realIdx = inbox.indexOf(c);
+      const tagsHtml = (c.tags || []).map(tg => `<span class="tag">${esc(tg)}</span>`).join('');
       html += `
-        <div class="todo-item ${t.done ? 'done' : ''}">
-          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo(${realIdx})" />
+        <div class="todo-item ${c.inboxDone ? 'done' : ''}" draggable="true" data-source="inbox" data-inbox-idx="${realIdx}">
+          <input type="checkbox" ${c.inboxDone ? 'checked' : ''} onchange="toggleInboxDone(${realIdx})" />
           <div class="todo-item-content">
-            <label onclick="toggleTodo(${realIdx})">${esc(t.text)}</label>
+            <label onclick="toggleInboxDone(${realIdx})">${esc(c.title)}</label>
             ${tagsHtml ? `<div class="todo-item-tags">${tagsHtml}</div>` : ''}
           </div>
           <div class="todo-actions">
-            <button class="todo-action-btn" onclick="deleteTodo(${realIdx})" title="Delete">&times;</button>
+            <button class="todo-action-btn" onclick="promoteToStack(${realIdx})" title="Move to stack">&#8594;</button>
+            <button class="todo-action-btn" onclick="deleteInboxItem(${realIdx})" title="Delete">&times;</button>
           </div>
         </div>`;
     });
+  } else {
+    html += '<div class="todo-empty-zone">Add quick to-dos or drag items here</div>';
   }
 
-  if (!html) {
-    html = '<div class="todo-empty">No items yet. Add cards to the stack<br>or create quick to-dos above.</div>';
-  }
+  html += '</div>'; // close inbox drop-zone
 
   list.innerHTML = html;
-  setupDragReorder();
+  setupDragAndDrop();
 }
 
-let dragSrcIdx = null;
+let dragSource = null; // { source: 'stack'|'inbox', idx: number }
 
-function setupDragReorder() {
+function setupDragAndDrop() {
+  // Make items draggable
   const items = document.querySelectorAll('.todo-item[draggable="true"]');
   items.forEach(item => {
     item.addEventListener('dragstart', e => {
-      dragSrcIdx = parseInt(item.dataset.stackIdx);
+      const source = item.dataset.source;
+      const idx = parseInt(source === 'stack' ? item.dataset.stackIdx : item.dataset.inboxIdx);
+      dragSource = { source, idx };
       item.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
     item.addEventListener('dragend', () => {
       item.classList.remove('dragging');
-      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      clearDropHighlights();
     });
+    // Reorder within same section
     item.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      clearDropHighlights();
       item.classList.add('drag-over');
     });
     item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
     item.addEventListener('drop', e => {
       e.preventDefault();
-      item.classList.remove('drag-over');
-      const targetIdx = parseInt(item.dataset.stackIdx);
-      if (dragSrcIdx !== null && dragSrcIdx !== targetIdx) {
-        const card = stack.splice(dragSrcIdx, 1)[0];
-        stack.splice(targetIdx, 0, card);
-        // Adjust currentIndex
-        if (currentIndex === dragSrcIdx) currentIndex = targetIdx;
-        else {
-          if (dragSrcIdx < currentIndex && targetIdx >= currentIndex) currentIndex--;
-          else if (dragSrcIdx > currentIndex && targetIdx <= currentIndex) currentIndex++;
+      clearDropHighlights();
+      if (!dragSource) return;
+      const targetSource = item.dataset.source;
+      const targetIdx = parseInt(targetSource === 'stack' ? item.dataset.stackIdx : item.dataset.inboxIdx);
+
+      if (dragSource.source === targetSource) {
+        // Reorder within same section
+        if (dragSource.source === 'stack' && dragSource.idx !== targetIdx) {
+          const card = stack.splice(dragSource.idx, 1)[0];
+          stack.splice(targetIdx, 0, card);
+          if (currentIndex === dragSource.idx) currentIndex = targetIdx;
+          else {
+            if (dragSource.idx < currentIndex && targetIdx >= currentIndex) currentIndex--;
+            else if (dragSource.idx > currentIndex && targetIdx <= currentIndex) currentIndex++;
+          }
+          save(); render(); renderTodos();
+        } else if (dragSource.source === 'inbox' && dragSource.idx !== targetIdx) {
+          const item = inbox.splice(dragSource.idx, 1)[0];
+          inbox.splice(targetIdx, 0, item);
+          save(); renderTodos();
         }
-        save(); render(); renderTodos();
+      } else {
+        // Cross-section drop (onto an item in the other section)
+        moveCardBetweenSections(dragSource.source, dragSource.idx, targetSource);
       }
-      dragSrcIdx = null;
+      dragSource = null;
     });
   });
+
+  // Drop zones for cross-section drops (dropping onto empty area)
+  document.querySelectorAll('.drop-zone').forEach(zone => {
+    zone.addEventListener('dragover', e => {
+      if (e.target.closest('.todo-item')) return; // let item handle it
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      clearDropHighlights();
+      zone.classList.add('drop-zone-active');
+    });
+    zone.addEventListener('dragleave', e => {
+      if (!zone.contains(e.relatedTarget)) zone.classList.remove('drop-zone-active');
+    });
+    zone.addEventListener('drop', e => {
+      if (e.target.closest('.todo-item')) return;
+      e.preventDefault();
+      zone.classList.remove('drop-zone-active');
+      if (!dragSource) return;
+      const targetZone = zone.dataset.zone;
+      if (dragSource.source !== targetZone) {
+        moveCardBetweenSections(dragSource.source, dragSource.idx, targetZone);
+      }
+      dragSource = null;
+    });
+  });
+}
+
+function clearDropHighlights() {
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.drop-zone-active').forEach(el => el.classList.remove('drop-zone-active'));
+}
+
+function moveCardBetweenSections(fromSection, fromIdx, toSection) {
+  if (fromSection === 'stack' && toSection === 'inbox') {
+    const card = stack.splice(fromIdx, 1)[0];
+    card.inboxDone = false;
+    inbox.push(card);
+    if (currentIndex >= stack.length) currentIndex = Math.max(0, stack.length - 1);
+  } else if (fromSection === 'inbox' && toSection === 'stack') {
+    const card = inbox.splice(fromIdx, 1)[0];
+    delete card.inboxDone;
+    stack.push(card);
+    currentIndex = stack.length - 1;
+  }
+  save(); render(); renderTodos();
 }
 
 function renderArchive() {
@@ -2117,13 +2222,23 @@ function addTodo() {
     return '';
   }).trim();
 
-  todos.push({ id: uid(), text: text || raw, tags: [...new Set(inlineTags)], done: false });
+  inbox.push({
+    id: uid(), type: 'task', title: text || raw, url: '',
+    tags: [...new Set(inlineTags)], notes: '', created: Date.now(), inboxDone: false
+  });
   input.value = '';
   save(); renderTodos();
 }
 
-function toggleTodo(i) { todos[i].done = !todos[i].done; save(); renderTodos(); }
-function deleteTodo(i) { todos.splice(i, 1); save(); renderTodos(); }
+function toggleInboxDone(i) { inbox[i].inboxDone = !inbox[i].inboxDone; save(); renderTodos(); }
+function deleteInboxItem(i) { inbox.splice(i, 1); save(); renderTodos(); }
+function promoteToStack(i) {
+  const card = inbox.splice(i, 1)[0];
+  delete card.inboxDone;
+  stack.push(card);
+  currentIndex = stack.length - 1;
+  save(); render(); renderTodos();
+}
 
 // ─── Stack Tag Filter ───
 let stackFilter = null;
@@ -2183,7 +2298,7 @@ function exportData() {
     version: 1,
     exported: new Date().toISOString(),
     stack_cards: stack,
-    stack_todos: todos,
+    stack_inbox: inbox,
     stack_bookmarks: archive,
     stack_index: currentIndex
   };
@@ -2202,7 +2317,15 @@ function importData(file) {
     try {
       const data = JSON.parse(reader.result);
       if (data.stack_cards) stack = data.stack_cards;
-      if (data.stack_todos) todos = data.stack_todos;
+      if (data.stack_inbox) inbox = data.stack_inbox;
+      else if (data.stack_todos) {
+        // Legacy import: convert old todos to inbox cards
+        inbox = data.stack_todos.map(t => ({
+          id: t.id || uid(), type: 'task', title: t.text || t.title || '',
+          url: t.url || '', tags: t.tags || [], notes: t.notes || '',
+          created: t.created || Date.now(), inboxDone: t.done || false
+        }));
+      }
       if (data.stack_bookmarks) archive = data.stack_bookmarks;
       if (typeof data.stack_index === 'number') currentIndex = data.stack_index;
       save();
@@ -2237,9 +2360,6 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
 });
 
-document.getElementById('studyPlanOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('studyPlanOverlay')) closeStudyPlanImport();
-});
 
 document.querySelectorAll('#cardTitleInput, #cardUrlInput').forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter') saveCard(); });
