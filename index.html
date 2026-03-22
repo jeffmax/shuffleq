@@ -1109,13 +1109,13 @@
 
 <script>
 // ─── Schema Version & Migrations ───
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function migrateData() {
   const stored = parseInt(localStorage.getItem('stack_schema_version') || '0', 10);
   if (stored < SCHEMA_VERSION) {
-    // v1 → v2: Convert quick todos {text, tags, done} to inbox cards {id, type, title, ...}
     if (stored < 2) {
+      // v1 → v2: Convert quick todos to inbox cards
       const oldTodos = JSON.parse(localStorage.getItem('stack_todos') || '[]');
       const inbox = oldTodos.map(t => ({
         id: t.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
@@ -1129,6 +1129,17 @@ function migrateData() {
       }));
       localStorage.setItem('stack_inbox', JSON.stringify(inbox));
       localStorage.removeItem('stack_todos');
+    }
+    if (stored < 3) {
+      // v2 → v3: Add modified timestamp to all cards
+      ['stack_cards', 'stack_inbox'].forEach(key => {
+        const items = JSON.parse(localStorage.getItem(key) || '[]');
+        items.forEach(c => { if (!c.modified) c.modified = c.created || Date.now(); });
+        localStorage.setItem(key, JSON.stringify(items));
+      });
+      const bm = JSON.parse(localStorage.getItem('stack_bookmarks') || '{}');
+      Object.values(bm).forEach(folder => folder.forEach(c => { if (!c.modified) c.modified = c.retired || c.created || Date.now(); }));
+      localStorage.setItem('stack_bookmarks', JSON.stringify(bm));
     }
     localStorage.setItem('stack_schema_version', SCHEMA_VERSION);
   }
@@ -1237,6 +1248,7 @@ function saveNotes() {
   if (!card) return;
   const ri = realIndex();
   stack[ri].notes = document.getElementById('notesEditor').value;
+  stack[ri].modified = Date.now();
   save();
 }
 
@@ -1857,7 +1869,7 @@ function saveCard() {
       }
       const card = {
         id: uid(), type: 'task', title: plan.title, url: '',
-        tags, notes: plan.description || '', created: Date.now(),
+        tags, notes: plan.description || '', created: Date.now(), modified: Date.now(),
         studyPlan: true,
         exercises: plan.exercises.map(ex => ({
           id: ex.id || uid(), phase: ex.phase || '', title: ex.title || '',
@@ -1890,13 +1902,13 @@ function saveCard() {
   if (editingId) {
     const idx = stack.findIndex(c => c.id === editingId);
     if (idx !== -1) {
-      stack[idx] = { ...stack[idx], type, title: resolvedTitle, url: type === 'link' ? url : '', tags, notes };
+      stack[idx] = { ...stack[idx], type, title: resolvedTitle, url: type === 'link' ? url : '', tags, notes, modified: Date.now() };
     }
   } else {
     const newCard = {
       id: uid(), type, title: resolvedTitle,
       url: type === 'link' ? url : '',
-      tags, notes, created: Date.now()
+      tags, notes, created: Date.now(), modified: Date.now()
     };
     // Detect YouTube playlist
     if (type === 'link' && url) {
@@ -1954,7 +1966,7 @@ function retireCard() {
   const bmEntry = {
     id: card.id, title: card.title, type: card.type,
     url: card.url || '', tags: card.tags || [],
-    notes: card.notes || '', retired: Date.now()
+    notes: card.notes || '', retired: Date.now(), modified: Date.now()
   };
 
   tags.forEach(tag => {
@@ -2409,6 +2421,7 @@ function togglePlaylistExpand(cardId) {
 function toggleExerciseDone(cardIdx, exIdx) {
   if (stack[cardIdx] && stack[cardIdx].exercises && stack[cardIdx].exercises[exIdx]) {
     stack[cardIdx].exercises[exIdx].done = !stack[cardIdx].exercises[exIdx].done;
+    stack[cardIdx].modified = Date.now();
     save(); render(); renderTodos();
   }
 }
@@ -2437,13 +2450,13 @@ function addTodo() {
 
   inbox.push({
     id: uid(), type: 'task', title: text || raw, url: '',
-    tags: [...new Set(inlineTags)], notes: '', created: Date.now(), inboxDone: false
+    tags: [...new Set(inlineTags)], notes: '', created: Date.now(), modified: Date.now(), inboxDone: false
   });
   input.value = '';
   save(); renderTodos();
 }
 
-function toggleInboxDone(i) { inbox[i].inboxDone = !inbox[i].inboxDone; save(); renderTodos(); }
+function toggleInboxDone(i) { inbox[i].inboxDone = !inbox[i].inboxDone; inbox[i].modified = Date.now(); save(); renderTodos(); }
 function deleteInboxItem(i) { inbox.splice(i, 1); save(); renderTodos(); }
 function promoteToStack(i) {
   const card = inbox.splice(i, 1)[0];
@@ -2522,6 +2535,7 @@ function applyFetchedTitle(cardId, title) {
   const hostname = (() => { try { return new URL(stack[idx].url).hostname.replace('www.', ''); } catch { return ''; } })();
   if (stack[idx].title === hostname || !stack[idx].title) {
     stack[idx].title = title;
+    stack[idx].modified = Date.now();
     save(); render(); renderTodos();
   }
 }
@@ -2532,6 +2546,7 @@ function convertToTask() {
   const card = stack[ri];
   if (!card) return;
   card.type = 'task';
+  card.modified = Date.now();
   // Keep url on the card for the "Open in new tab" button — don't copy to notes
   save();
   render();
@@ -2580,28 +2595,102 @@ function importData(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (data.stack_cards) stack = data.stack_cards;
-      if (data.stack_inbox) inbox = data.stack_inbox;
-      else if (data.stack_todos) {
-        // Legacy import: convert old todos to inbox cards
-        inbox = data.stack_todos.map(t => ({
+      // Normalize legacy format
+      if (data.stack_todos && !data.stack_inbox) {
+        data.stack_inbox = data.stack_todos.map(t => ({
           id: t.id || uid(), type: 'task', title: t.text || t.title || '',
           url: t.url || '', tags: t.tags || [], notes: t.notes || '',
-          created: t.created || Date.now(), inboxDone: t.done || false
+          created: t.created || Date.now(), modified: t.created || Date.now(), inboxDone: t.done || false
         }));
       }
-      if (data.stack_bookmarks) archive = data.stack_bookmarks;
-      if (typeof data.stack_index === 'number') currentIndex = data.stack_index;
-      save();
-      render();
-      renderTodos();
-      renderArchive();
-      alert('Data imported successfully!');
+
+      const hasLocal = stack.length > 0 || inbox.length > 0 || Object.keys(archive).length > 0;
+      if (hasLocal) {
+        const choice = confirm(
+          'You have existing data.\n\n' +
+          'OK = Merge (combine with existing data)\n' +
+          'Cancel = Replace all (overwrite everything)'
+        );
+        if (choice) {
+          mergeImport(data);
+        } else {
+          replaceImport(data);
+        }
+      } else {
+        replaceImport(data);
+      }
     } catch (e) {
       alert('Invalid backup file: ' + e.message);
     }
   };
   reader.readAsText(file);
+}
+
+function replaceImport(data) {
+  if (data.stack_cards) stack = data.stack_cards;
+  if (data.stack_inbox) inbox = data.stack_inbox;
+  if (data.stack_bookmarks) archive = data.stack_bookmarks;
+  if (typeof data.stack_index === 'number') currentIndex = data.stack_index;
+  save(); render(); renderTodos(); renderArchive();
+  alert('Data replaced successfully!');
+}
+
+function mergeImport(data) {
+  let added = 0, updated = 0, unchanged = 0;
+
+  function mergeList(local, incoming) {
+    const localMap = new Map(local.map(c => [c.id, c]));
+    for (const item of (incoming || [])) {
+      const existing = localMap.get(item.id);
+      if (!existing) {
+        local.push(item);
+        added++;
+      } else {
+        const incomingMod = item.modified || item.created || 0;
+        const localMod = existing.modified || existing.created || 0;
+        if (incomingMod > localMod) {
+          const idx = local.indexOf(existing);
+          local[idx] = item;
+          updated++;
+        } else {
+          unchanged++;
+        }
+      }
+    }
+    return local;
+  }
+
+  stack = mergeList(stack, data.stack_cards);
+  inbox = mergeList(inbox, data.stack_inbox);
+
+  // Merge archive: merge per-tag folders
+  const incoming = data.stack_bookmarks || {};
+  for (const tag of Object.keys(incoming)) {
+    if (!archive[tag]) archive[tag] = [];
+    const localMap = new Map(archive[tag].map(c => [c.id, c]));
+    for (const item of incoming[tag]) {
+      const existing = localMap.get(item.id);
+      if (!existing) {
+        archive[tag].push(item);
+        added++;
+      } else {
+        const incomingMod = item.modified || item.retired || item.created || 0;
+        const localMod = existing.modified || existing.retired || existing.created || 0;
+        if (incomingMod > localMod) {
+          const idx = archive[tag].indexOf(existing);
+          archive[tag][idx] = item;
+          updated++;
+        } else {
+          unchanged++;
+        }
+      }
+    }
+  }
+
+  if (currentIndex >= stack.length) currentIndex = Math.max(0, stack.length - 1);
+  save(); render(); renderTodos(); renderArchive();
+  alert(`Merge complete: ${added} added, ${updated} updated, ${unchanged} unchanged`);
+}
 }
 
 // ─── Event Listeners ───
