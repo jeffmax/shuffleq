@@ -235,7 +235,7 @@
 
   .yt-player-wrap {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    background: #000;
+    background: #000; position: relative;
   }
 
   .yt-player-wrap iframe {
@@ -270,6 +270,24 @@
   }
 
   .yt-playlist-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+  .yt-controls {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; gap: 8px; padding: 10px 12px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    opacity: 0; transition: opacity 0.25s; z-index: 5;
+    pointer-events: none;
+  }
+  .yt-player-wrap:hover .yt-controls,
+  .yt-controls.visible { opacity: 1; pointer-events: all; }
+
+  .yt-ctrl-btn {
+    background: rgba(0,0,0,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px; padding: 6px 12px; font-size: 0.78rem;
+    cursor: pointer; transition: background 0.15s; backdrop-filter: blur(4px);
+    white-space: nowrap;
+  }
+  .yt-ctrl-btn:hover { background: rgba(255,255,255,0.15); }
 
   .yt-playlist-item {
     padding: 10px 16px; cursor: pointer; display: flex;
@@ -490,6 +508,13 @@
   }
 
   .notes-drawer-header h2 { font-size: 1rem; font-weight: 600; }
+
+  .notes-tool-btn {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-muted); border-radius: 6px; padding: 5px 10px;
+    font-size: 0.75rem; cursor: pointer; transition: all 0.15s;
+  }
+  .notes-tool-btn:hover { color: var(--text); background: rgba(255,255,255,0.1); }
 
   #notesEditor {
     flex: 1; background: transparent; color: var(--text);
@@ -945,6 +970,7 @@
 <div class="notes-drawer" id="notesDrawer">
   <div class="notes-drawer-header">
     <h2>Notes</h2>
+    <button class="notes-tool-btn" id="insertTimestampBtn" onclick="insertVideoTimestamp()" title="Insert link at current video time" style="display:none;">&#128206; Timestamp</button>
     <button class="icon-btn" id="closeNotes">&times;</button>
   </div>
   <textarea id="notesEditor" placeholder="Type notes for this card..."></textarea>
@@ -1181,10 +1207,28 @@ function toggleNotes() {
     const card = visible[currentIndex];
     if (!card) return;
     document.getElementById('notesEditor').value = card.notes || '';
+    // Show timestamp button if YouTube player is active
+    document.getElementById('insertTimestampBtn').style.display = window._ytPlayer ? '' : 'none';
     drawer.classList.add('open');
     overlay.classList.add('open');
     document.getElementById('notesEditor').focus();
   }
+}
+
+function insertVideoTimestamp() {
+  const url = getYtVideoUrl();
+  if (!url) return;
+  const editor = document.getElementById('notesEditor');
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const text = editor.value;
+  editor.value = text.slice(0, start) + url + text.slice(end);
+  // Place cursor after inserted URL
+  const newPos = start + url.length;
+  editor.selectionStart = editor.selectionEnd = newPos;
+  editor.focus();
+  // Trigger save
+  saveNotes();
 }
 
 function saveNotes() {
@@ -1369,6 +1413,10 @@ function renderYouTubePlaylist(card, listId) {
     <div class="yt-layout" id="ytLayout">
       <div class="yt-player-wrap">
         <div id="ytPlayer"></div>
+        <div class="yt-controls" id="ytControls">
+          <button class="yt-ctrl-btn" onclick="openOnYouTube()" title="Open on YouTube (AI features)">Open on YouTube &#8599;</button>
+          <button class="yt-ctrl-btn" onclick="copyVideoLink()" title="Copy link at current time">Copy link at time &#128203;</button>
+        </div>
       </div>
       <div class="yt-playlist-tab" onclick="toggleYtPlaylist()" id="ytPlaylistTab" title="Toggle playlist">&#9776;</div>
       <div class="yt-playlist-panel" id="ytPlaylistPanel">
@@ -1467,6 +1515,49 @@ function renderYtPlaylistItems(videoIds, activeIdx, card) {
       .catch(() => {});
   });
 }
+
+function getYtVideoUrl() {
+  const p = window._ytPlayer;
+  if (!p) return null;
+  try {
+    const pl = p.getPlaylist();
+    const idx = p.getPlaylistIndex();
+    const videoId = pl && pl[idx];
+    const time = Math.floor(p.getCurrentTime() || 0);
+    if (videoId) return `https://www.youtube.com/watch?v=${videoId}&t=${time}s`;
+  } catch {}
+  return stack[realIndex()]?.url || null;
+}
+
+function openOnYouTube() {
+  const p = window._ytPlayer;
+  if (p) try { p.pauseVideo(); } catch {}
+  const url = getYtVideoUrl();
+  if (url) window.open(url, '_blank');
+}
+
+function copyVideoLink() {
+  const url = getYtVideoUrl();
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.querySelector('.yt-controls .yt-ctrl-btn:last-child');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// Mobile: tap player wrap to show/hide controls
+document.addEventListener('click', e => {
+  const controls = document.getElementById('ytControls');
+  if (!controls) return;
+  if (e.target.closest('.yt-controls')) return;
+  if (e.target.closest('.yt-player-wrap')) {
+    controls.classList.toggle('visible');
+  } else {
+    controls.classList.remove('visible');
+  }
+});
 
 function toggleYtPlaylist() {
   const panel = document.getElementById('ytPlaylistPanel');
