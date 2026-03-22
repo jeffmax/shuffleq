@@ -1653,7 +1653,7 @@ function renderTaskView(card) {
           <div class="card-title">${esc(card.title)}</div>
           ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ''}
           ${card.notes ? `<div class="card-notes">${esc(card.notes)}</div>` : '<div class="card-notes" style="flex:1;"></div>'}
-          ${card.url ? `<div style="margin-bottom:16px;"><a href="${esc(card.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.85rem;">&#128279; ${esc(card.url)}</a></div>` : ''}
+          ${card.url ? `<div style="margin-bottom:16px;"><a href="${esc(card.url)}" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:0.85rem;">Open in new tab &#8599;</a></div>` : ''}
           <div class="card-actions mobile-only">
             <button class="btn btn-secondary" onclick="editCard()">Edit</button>
             <button class="btn btn-bookmark" onclick="retireCard()">&#9733; Archive</button>
@@ -1743,8 +1743,8 @@ function toggleUrlField() {
   // Hide title/notes for study plan (extracted from JSON)
   document.getElementById('cardTitleInput').parentElement.style.display = isStudyPlan ? 'none' : '';
   document.getElementById('cardNotesInput').parentElement.style.display = isStudyPlan ? 'none' : '';
-  document.getElementById('cardTitleLabel').textContent = isLink ? 'Title' : 'Task Name';
-  document.getElementById('cardTitleInput').placeholder = isLink ? 'e.g. CSS Grid Tutorial' : 'e.g. Review PR #42';
+  document.getElementById('cardTitleLabel').textContent = isLink ? 'Title (auto-detected if blank)' : 'Task Name';
+  document.getElementById('cardTitleInput').placeholder = isLink ? 'Leave blank to auto-detect' : 'e.g. Review PR #42';
   // Clear error when switching
   document.getElementById('studyPlanError').style.display = 'none';
 }
@@ -1790,17 +1790,20 @@ function saveCard() {
   const tags = parseTags(document.getElementById('cardTagsInput').value);
   const notes = document.getElementById('cardNotesInput').value.trim();
 
-  if (!title) { document.getElementById('cardTitleInput').focus(); return; }
   if (type === 'link' && !url) { document.getElementById('cardUrlInput').focus(); return; }
+  if (!title && type !== 'link') { document.getElementById('cardTitleInput').focus(); return; }
+
+  // For links without a title, use hostname as placeholder and fetch real title
+  const resolvedTitle = title || (() => { try { return new URL(url).hostname.replace('www.', ''); } catch { return url; } })();
 
   if (editingId) {
     const idx = stack.findIndex(c => c.id === editingId);
     if (idx !== -1) {
-      stack[idx] = { ...stack[idx], type, title, url: type === 'link' ? url : '', tags, notes };
+      stack[idx] = { ...stack[idx], type, title: resolvedTitle, url: type === 'link' ? url : '', tags, notes };
     }
   } else {
     const newCard = {
-      id: uid(), type, title,
+      id: uid(), type, title: resolvedTitle,
       url: type === 'link' ? url : '',
       tags, notes, created: Date.now()
     };
@@ -1817,6 +1820,9 @@ function saveCard() {
     }
     stack.push(newCard);
     currentIndex = stack.length - 1;
+
+    // Auto-fetch page title if user didn't provide one
+    if (!title && url) fetchPageTitle(newCard.id, url);
   }
 
   closeModal();
@@ -2397,13 +2403,45 @@ function promptStackFilter() {
   else alert('Tag "' + normalized + '" not found.');
 }
 
+// ─── Auto-fetch Page Title ───
+function fetchPageTitle(cardId, url) {
+  // Try noembed (oEmbed aggregator, works for many sites)
+  fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.title) {
+        applyFetchedTitle(cardId, data.title);
+        return;
+      }
+      // Fallback: try fetching the page directly (works for CORS-friendly sites)
+      return fetch(url, { mode: 'cors' }).then(r => r.text()).then(html => {
+        const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (match) applyFetchedTitle(cardId, match[1].trim());
+      });
+    })
+    .catch(() => {
+      // Silent fail — hostname title is already set as fallback
+    });
+}
+
+function applyFetchedTitle(cardId, title) {
+  const idx = stack.findIndex(c => c.id === cardId);
+  if (idx === -1) return;
+  // Only update if still using the hostname placeholder
+  const hostname = (() => { try { return new URL(stack[idx].url).hostname.replace('www.', ''); } catch { return ''; } })();
+  if (stack[idx].title === hostname || !stack[idx].title) {
+    stack[idx].title = title;
+    save(); render(); renderTodos();
+  }
+}
+
 // ─── Convert Link to Task ───
 function convertToTask() {
   const ri = realIndex();
   const card = stack[ri];
   if (!card) return;
   card.type = 'task';
-  card.notes = (card.notes ? card.notes + '\n\n' : '') + 'URL: ' + (card.url || '');
+  // Keep url on the card for the "Open in new tab" button — don't copy to notes
   save();
   render();
 }
