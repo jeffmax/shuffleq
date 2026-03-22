@@ -260,25 +260,16 @@
     white-space: nowrap;
   }
 
-  .yt-toggle-btn {
-    background: none; border: 1px solid rgba(255,255,255,0.1);
-    color: var(--text-muted); cursor: pointer; border-radius: 4px;
-    padding: 2px 8px; font-size: 0.75rem; transition: color 0.15s;
+  .yt-playlist-tab {
+    writing-mode: vertical-rl; text-orientation: mixed;
+    background: var(--surface); border-left: 1px solid rgba(255,255,255,0.06);
+    color: var(--text-muted); cursor: pointer;
+    padding: 12px 6px; font-size: 0.8rem; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s; user-select: none;
   }
 
-  .yt-toggle-btn:hover { color: var(--text); }
-
-  .yt-toggle-expand {
-    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    background: var(--surface); border: 1px solid rgba(255,255,255,0.1);
-    border-right: none; color: var(--text-muted); cursor: pointer;
-    border-radius: 4px 0 0 4px; padding: 8px 4px; font-size: 0.8rem;
-    display: none; z-index: 5;
-  }
-
-  .yt-toggle-expand:hover { color: var(--text); }
-
-  .yt-layout.playlist-collapsed .yt-toggle-expand { display: block; }
+  .yt-playlist-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
 
   .yt-playlist-item {
     padding: 10px 16px; cursor: pointer; display: flex;
@@ -545,7 +536,7 @@
   .sidebar-tab:hover { color: var(--text); }
   .sidebar-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-  .sidebar-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .sidebar-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
   .sidebar-panel.active { display: flex; }
 
   .tag-filters {
@@ -615,6 +606,23 @@
   .drop-zone-hint { display: none; text-align: center; font-size: 0.72rem; color: var(--text-muted); padding: 8px 0; }
   .drop-zone-active .drop-zone-hint { display: block; }
   .todo-empty-zone { text-align: center; font-size: 0.78rem; color: var(--text-muted); padding: 12px 0; opacity: 0.6; }
+
+  .help-modal { max-width: 520px; }
+  .help-grid { display: flex; flex-direction: column; gap: 16px; }
+  .help-section h3 {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-muted); margin-bottom: 6px; font-weight: 700;
+  }
+  .help-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.85rem; padding: 3px 0;
+  }
+  .help-row span { margin-left: auto; color: var(--text-muted); font-size: 0.8rem; }
+  .help-row kbd {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px; padding: 2px 7px; font-size: 0.75rem;
+    font-family: 'SF Mono','Menlo',monospace; min-width: 22px; text-align: center;
+  }
 
   .schema-help { margin-top: 8px; font-size: 0.78rem; color: var(--text-muted); }
   .schema-help summary { cursor: pointer; user-select: none; }
@@ -882,10 +890,11 @@
     .dots-row { max-width: 160px; }
     .blocked-card { margin: 20px 16px; max-width: 100%; }
     header { padding: 10px 12px; }
-    .header-controls { gap: 6px; }
-    .icon-btn { width: 32px; height: 32px; font-size: 1rem; }
+    .header-controls { gap: 4px; }
+    .icon-btn { width: 30px; height: 30px; font-size: 0.95rem; }
     .header-card-actions { display: none; }
-    .header-left { gap: 10px; }
+    .header-left { gap: 6px; }
+    .header-left h1 { display: none; }
     .mobile-only { display: flex; flex-direction: column; gap: 8px; }
     .mobile-only .btn { width: 100%; text-align: center; }
   }
@@ -909,9 +918,10 @@
       <span class="pomo-display" id="pomoDisplay" onclick="resetPomodoro()" title="Click to reset">25:00</span>
       <button class="pomo-btn" id="pomoStartBtn" onclick="togglePomodoro()" title="Start timer">&#9654;</button>
     </div>
+    <button class="icon-btn" id="notesBtn" onclick="toggleNotes()" title="Notes (Shift+N)" style="font-size:1.1rem;">&#9998;</button>
     <button class="icon-btn" id="addBtn" title="Add card (N)">+</button>
-    <button class="icon-btn" id="bmBtn" title="Archive (B)" style="font-size:0.95rem;">&#9733;</button>
-    <button class="icon-btn" id="todoBtn" title="To-do list (T)">&#9776;</button>
+    <button class="icon-btn" id="todoBtn" title="Sidebar (T)">&#9776;</button>
+    <button class="icon-btn" id="helpBtn" onclick="toggleHelp()" title="Help (?)" style="font-size:0.9rem;">?</button>
   </div>
 
 </header>
@@ -960,6 +970,7 @@
   </div>
   <div class="sidebar-footer">
     <button class="btn btn-secondary" onclick="exportData()" title="Download all data as JSON">&#8615; Export</button>
+    <button class="btn btn-secondary" onclick="copyBackup()" title="Copy backup JSON to clipboard">&#128203; Copy</button>
     <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" title="Restore from JSON backup">&#8613; Import</button>
   </div>
 </div>
@@ -1024,6 +1035,45 @@
     <div class="modal-actions">
       <button class="btn btn-secondary" id="modalCancel">Cancel</button>
       <button class="btn btn-primary" id="modalSave">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Help Modal ── -->
+<div class="modal-overlay" id="helpOverlay">
+  <div class="modal help-modal">
+    <h2>Keyboard Shortcuts</h2>
+    <div class="help-grid">
+      <div class="help-section">
+        <h3>Navigation</h3>
+        <div class="help-row"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <span>Previous / Next card</span></div>
+        <div class="help-row"><kbd>H</kbd> <kbd>K</kbd> <span>Previous (vim)</span></div>
+        <div class="help-row"><kbd>L</kbd> <kbd>J</kbd> <span>Next (vim)</span></div>
+      </div>
+      <div class="help-section">
+        <h3>Cards</h3>
+        <div class="help-row"><kbd>N</kbd> / <kbd>A</kbd> <span>Add new card</span></div>
+        <div class="help-row"><kbd>E</kbd> <span>Edit current card</span></div>
+        <div class="help-row"><kbd>O</kbd> <span>Open link in new tab</span></div>
+        <div class="help-row"><kbd>R</kbd> <span>Archive card</span></div>
+        <div class="help-row"><kbd>D</kbd> / <kbd>&#9003;</kbd> <span>Delete card</span></div>
+        <div class="help-row"><kbd>F</kbd> <span>Filter by tag</span></div>
+        <div class="help-row"><kbd>Esc</kbd> <span>Clear filter</span></div>
+      </div>
+      <div class="help-section">
+        <h3>Panels</h3>
+        <div class="help-row"><kbd>T</kbd> <span>Toggle sidebar (Stack/Inbox)</span></div>
+        <div class="help-row"><kbd>B</kbd> <span>Toggle archive</span></div>
+        <div class="help-row"><kbd>Shift+N</kbd> <span>Toggle notes drawer</span></div>
+        <div class="help-row"><kbd>Shift+H</kbd> <span>Toggle header</span></div>
+      </div>
+      <div class="help-section">
+        <h3>Other</h3>
+        <div class="help-row"><kbd>?</kbd> <span>Show this help</span></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="toggleHelp()">Close</button>
     </div>
   </div>
 </div>
@@ -1110,6 +1160,10 @@ document.getElementById('headerHandle').addEventListener('click', () => {
 
 // ─── Notes Drawer ───
 let notesDebounce = null;
+
+function toggleHelp() {
+  document.getElementById('helpOverlay').classList.toggle('open');
+}
 
 function toggleNotes() {
   const drawer = document.getElementById('notesDrawer');
@@ -1213,8 +1267,8 @@ function updateHeaderActions() {
   el.innerHTML = `
     <button class="header-action" onclick="editCard()" title="Edit (E)">Edit</button>
     ${isLink ? `<a href="${esc(card.url)}" target="_blank" rel="noopener" class="header-action" title="Open in new tab (O)">New Tab &#8599;</a>` : ''}
-    <button class="header-action retire" onclick="retireCard()" title="Retire (R)">&#9733; Retire</button>
-    <button class="header-action danger" onclick="removeCard()" title="Delete (D)">&#10005;</button>`;
+    <button class="header-action retire" onclick="retireCard()" title="Archive (R)">&#9733; Archive</button>
+    <button class="header-action danger" onclick="removeCard()" title="Delete (D)">&#10005; Delete</button>`;
 }
 
 // ─── Render ───
@@ -1313,11 +1367,10 @@ function renderYouTubePlaylist(card, listId) {
       <div class="yt-player-wrap">
         <div id="ytPlayer"></div>
       </div>
-      <button class="yt-toggle-expand" onclick="toggleYtPlaylist()" title="Show playlist">&#9776;</button>
+      <div class="yt-playlist-tab" onclick="toggleYtPlaylist()" id="ytPlaylistTab" title="Toggle playlist">&#9776;</div>
       <div class="yt-playlist-panel" id="ytPlaylistPanel">
         <div class="yt-playlist-header" id="ytPlaylistHeader">
           <span>Playlist</span>
-          <button class="yt-toggle-btn" onclick="toggleYtPlaylist()" title="Hide playlist">&times;</button>
         </div>
         <div id="ytPlaylistItems"></div>
       </div>
@@ -1500,7 +1553,7 @@ function showBlockedFallback(card) {
       </div>
       <div class="scroll-done-prompt" id="scrollDonePrompt">
         Finished with this?
-        <button class="btn btn-bookmark btn-sm" onclick="retireCard()">&#9733; Retire</button>
+        <button class="btn btn-bookmark btn-sm" onclick="retireCard()">&#9733; Archive</button>
         <button class="btn btn-danger btn-sm" onclick="removeCard()">Done</button>
       </div>
     </div>`;
@@ -1600,14 +1653,14 @@ function renderTaskView(card) {
           ${card.url ? `<div style="margin-bottom:16px;"><a href="${esc(card.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.85rem;">&#128279; ${esc(card.url)}</a></div>` : ''}
           <div class="card-actions mobile-only">
             <button class="btn btn-secondary" onclick="editCard()">Edit</button>
-            <button class="btn btn-bookmark" onclick="retireCard()">&#9733; Retire</button>
+            <button class="btn btn-bookmark" onclick="retireCard()">&#9733; Archive</button>
             <button class="btn btn-danger" onclick="removeCard()">&#10005; Delete</button>
           </div>
         </div>
       </div>
       <div class="scroll-done-prompt" id="scrollDonePrompt">
         Finished with this?
-        <button class="btn btn-bookmark btn-sm" onclick="retireCard()">&#9733; Retire</button>
+        <button class="btn btn-bookmark btn-sm" onclick="retireCard()">&#9733; Archive</button>
         <button class="btn btn-danger btn-sm" onclick="removeCard()">Done</button>
       </div>
       <div class="keyboard-hints">
@@ -1615,7 +1668,7 @@ function renderTaskView(card) {
         <span><kbd>N</kbd> new</span>
         <span><kbd>T</kbd> to-dos</span>
         <span><kbd>F</kbd> filter</span>
-        <span><kbd>R</kbd> retire</span>
+        <span><kbd>R</kbd> archive</span>
         <span><kbd>Shift+N</kbd> notes</span>
       </div>
     </div>`;
@@ -1992,14 +2045,48 @@ function renderTodos() {
 
 let dragSource = null; // { source: 'stack'|'inbox', idx: number }
 
+function getItemInfo(el) {
+  const source = el.dataset.source;
+  const idx = parseInt(source === 'stack' ? el.dataset.stackIdx : el.dataset.inboxIdx);
+  return { source, idx };
+}
+
+function handleDrop(targetEl, targetZone) {
+  if (!dragSource) return;
+  if (targetEl) {
+    const targetSource = targetEl.dataset.source;
+    const targetIdx = parseInt(targetSource === 'stack' ? targetEl.dataset.stackIdx : targetEl.dataset.inboxIdx);
+    if (dragSource.source === targetSource) {
+      if (dragSource.source === 'stack' && dragSource.idx !== targetIdx) {
+        const card = stack.splice(dragSource.idx, 1)[0];
+        stack.splice(targetIdx, 0, card);
+        if (currentIndex === dragSource.idx) currentIndex = targetIdx;
+        else {
+          if (dragSource.idx < currentIndex && targetIdx >= currentIndex) currentIndex--;
+          else if (dragSource.idx > currentIndex && targetIdx <= currentIndex) currentIndex++;
+        }
+        save(); render(); renderTodos();
+      } else if (dragSource.source === 'inbox' && dragSource.idx !== targetIdx) {
+        const itm = inbox.splice(dragSource.idx, 1)[0];
+        inbox.splice(targetIdx, 0, itm);
+        save(); renderTodos();
+      }
+    } else {
+      moveCardBetweenSections(dragSource.source, dragSource.idx, targetSource);
+    }
+  } else if (targetZone && dragSource.source !== targetZone) {
+    moveCardBetweenSections(dragSource.source, dragSource.idx, targetZone);
+  }
+  dragSource = null;
+}
+
 function setupDragAndDrop() {
-  // Make items draggable
   const items = document.querySelectorAll('.todo-item[draggable="true"]');
+
+  // Desktop drag events
   items.forEach(item => {
     item.addEventListener('dragstart', e => {
-      const source = item.dataset.source;
-      const idx = parseInt(source === 'stack' ? item.dataset.stackIdx : item.dataset.inboxIdx);
-      dragSource = { source, idx };
+      dragSource = getItemInfo(item);
       item.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
@@ -2007,7 +2094,6 @@ function setupDragAndDrop() {
       item.classList.remove('dragging');
       clearDropHighlights();
     });
-    // Reorder within same section
     item.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
@@ -2018,38 +2104,13 @@ function setupDragAndDrop() {
     item.addEventListener('drop', e => {
       e.preventDefault();
       clearDropHighlights();
-      if (!dragSource) return;
-      const targetSource = item.dataset.source;
-      const targetIdx = parseInt(targetSource === 'stack' ? item.dataset.stackIdx : item.dataset.inboxIdx);
-
-      if (dragSource.source === targetSource) {
-        // Reorder within same section
-        if (dragSource.source === 'stack' && dragSource.idx !== targetIdx) {
-          const card = stack.splice(dragSource.idx, 1)[0];
-          stack.splice(targetIdx, 0, card);
-          if (currentIndex === dragSource.idx) currentIndex = targetIdx;
-          else {
-            if (dragSource.idx < currentIndex && targetIdx >= currentIndex) currentIndex--;
-            else if (dragSource.idx > currentIndex && targetIdx <= currentIndex) currentIndex++;
-          }
-          save(); render(); renderTodos();
-        } else if (dragSource.source === 'inbox' && dragSource.idx !== targetIdx) {
-          const item = inbox.splice(dragSource.idx, 1)[0];
-          inbox.splice(targetIdx, 0, item);
-          save(); renderTodos();
-        }
-      } else {
-        // Cross-section drop (onto an item in the other section)
-        moveCardBetweenSections(dragSource.source, dragSource.idx, targetSource);
-      }
-      dragSource = null;
+      handleDrop(item, null);
     });
   });
 
-  // Drop zones for cross-section drops (dropping onto empty area)
   document.querySelectorAll('.drop-zone').forEach(zone => {
     zone.addEventListener('dragover', e => {
-      if (e.target.closest('.todo-item')) return; // let item handle it
+      if (e.target.closest('.todo-item')) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       clearDropHighlights();
@@ -2062,12 +2123,64 @@ function setupDragAndDrop() {
       if (e.target.closest('.todo-item')) return;
       e.preventDefault();
       zone.classList.remove('drop-zone-active');
-      if (!dragSource) return;
-      const targetZone = zone.dataset.zone;
-      if (dragSource.source !== targetZone) {
-        moveCardBetweenSections(dragSource.source, dragSource.idx, targetZone);
+      handleDrop(null, zone.dataset.zone);
+    });
+  });
+
+  // Mobile touch events
+  let touchStartY = 0;
+  let touchItem = null;
+
+  items.forEach(item => {
+    item.addEventListener('touchstart', e => {
+      touchStartY = e.touches[0].clientY;
+      touchItem = item;
+      dragSource = getItemInfo(item);
+      // Delay adding dragging class to distinguish from scroll
+      item._touchTimer = setTimeout(() => {
+        item.classList.add('dragging');
+      }, 200);
+    }, { passive: true });
+
+    item.addEventListener('touchmove', e => {
+      if (!dragSource || !touchItem) return;
+      const dy = Math.abs(e.touches[0].clientY - touchStartY);
+      if (dy > 10 && touchItem.classList.contains('dragging')) {
+        e.preventDefault();
+        clearDropHighlights();
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target) {
+          const targetItem = target.closest('.todo-item[draggable="true"]');
+          const targetZone = target.closest('.drop-zone');
+          if (targetItem && targetItem !== touchItem) targetItem.classList.add('drag-over');
+          else if (targetZone) targetZone.classList.add('drop-zone-active');
+        }
       }
-      dragSource = null;
+    }, { passive: false });
+
+    item.addEventListener('touchend', e => {
+      clearTimeout(item._touchTimer);
+      if (!dragSource || !touchItem) return;
+      if (!touchItem.classList.contains('dragging')) {
+        dragSource = null;
+        touchItem = null;
+        return;
+      }
+      touchItem.classList.remove('dragging');
+      clearDropHighlights();
+      const touch = e.changedTouches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (target) {
+        const targetItem = target.closest('.todo-item[draggable="true"]');
+        const targetZone = target.closest('.drop-zone');
+        if (targetItem && targetItem !== touchItem) handleDrop(targetItem, null);
+        else if (targetZone) handleDrop(null, targetZone.dataset.zone);
+        else dragSource = null;
+      } else {
+        dragSource = null;
+      }
+      touchItem = null;
     });
   });
 }
@@ -2097,7 +2210,7 @@ function renderArchive() {
   const folders = Object.keys(archive).sort();
 
   if (folders.length === 0) {
-    list.innerHTML = '<div class="todo-empty">No archived items yet.<br>Retire cards from the stack to save them here.</div>';
+    list.innerHTML = '<div class="todo-empty">No archived items yet.<br>Archive cards from the stack to save them here.</div>';
     return;
   }
 
@@ -2311,6 +2424,25 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
+function copyBackup() {
+  const data = {
+    version: 1,
+    exported: new Date().toISOString(),
+    stack_cards: stack,
+    stack_inbox: inbox,
+    stack_bookmarks: archive,
+    stack_index: currentIndex
+  };
+  navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
+    const btn = document.querySelector('.sidebar-footer button:nth-child(2)');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '&#10003; Copied';
+    setTimeout(() => btn.innerHTML = orig, 1500);
+  }).catch(() => {
+    alert('Could not copy to clipboard.');
+  });
+}
+
 function importData(file) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -2343,7 +2475,6 @@ function importData(file) {
 // ─── Event Listeners ───
 document.getElementById('addBtn').addEventListener('click', () => openModal());
 document.getElementById('todoBtn').addEventListener('click', () => toggleSidebar('todos'));
-document.getElementById('bmBtn').addEventListener('click', () => toggleSidebar('archive'));
 document.getElementById('closeSidebar').addEventListener('click', () => toggleSidebar());
 document.getElementById('sidebarOverlay').addEventListener('click', () => toggleSidebar());
 document.getElementById('modalCancel').addEventListener('click', closeModal);
@@ -2358,6 +2489,9 @@ document.getElementById('importFile').addEventListener('change', e => {
 
 document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+document.getElementById('helpOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('helpOverlay')) toggleHelp();
 });
 
 
@@ -2392,6 +2526,7 @@ document.addEventListener('keydown', e => {
     case 'f': promptStackFilter(); break;
     case 'H': document.body.classList.toggle('header-hidden'); break;
     case 'N': toggleNotes(); break;
+    case '?': toggleHelp(); break;
     case 'Escape': if (stackFilter) { clearStackFilter(); e.preventDefault(); } break;
   }
 });
