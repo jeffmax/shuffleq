@@ -478,6 +478,7 @@
   .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
 
   .mobile-only { display: none; }
+  .desktop-only { display: inline-flex; }
 
   .empty-state { text-align: center; color: var(--text-muted); }
   .empty-state .big-icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.5; }
@@ -951,6 +952,7 @@
     .header-left h1 { display: none; }
     .mobile-only { display: flex; flex-direction: column; gap: 8px; }
     .mobile-only .btn { width: 100%; text-align: center; }
+    .desktop-only { display: none !important; }
   }
 </style>
 </head>
@@ -1903,7 +1905,10 @@ function renderTaskView(card) {
           <div class="card-title">${esc(card.title)}</div>
           ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ''}
           ${card.notes ? `<div class="card-notes">${esc(card.notes)}</div>` : '<div class="card-notes" style="flex:1;"></div>'}
-          ${card.url ? `<div style="margin-bottom:16px;"><a href="${esc(card.url)}" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:0.85rem;">Open in new tab &#8599;</a></div>` : ''}
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+            ${card.url ? `<a href="${esc(card.url)}" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:0.85rem;">Open in new tab &#8599;</a>` : ''}
+            <button class="btn btn-secondary desktop-only" onclick="editCard()" style="font-size:0.85rem;">&#9998; Edit</button>
+          </div>
           <div class="card-actions mobile-only">
             <button class="btn btn-secondary" onclick="editCard()">Edit</button>
             <button class="btn btn-bookmark" onclick="retireCard()">&#9733; Archive</button>
@@ -2049,7 +2054,8 @@ function saveCard() {
   if (editingId) {
     const idx = stack.findIndex(c => c.id === editingId);
     if (idx !== -1) {
-      stack[idx] = { ...stack[idx], type, title: resolvedTitle, url: type === 'link' ? url : '', tags, notes, modified: Date.now() };
+      const existingUrl = stack[idx].url || '';
+      stack[idx] = { ...stack[idx], type, title: resolvedTitle, url: type === 'link' ? url : existingUrl, tags, notes, modified: Date.now() };
     }
   } else {
     const newCard = {
