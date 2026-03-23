@@ -317,6 +317,45 @@ async function testStudyPlan() {
   await assert('Badge shows Study Plan', badge.includes('Study Plan'));
 }
 
+async function testStudyPlanWithObjectLinks() {
+  log('\n═══ Study Plan With Object Links ═══');
+  await resetApp();
+
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'studyplan');
+  await page.waitForTimeout(200);
+
+  // Links as objects (Claude often generates this format)
+  await page.fill('#studyPlanJsonInput', JSON.stringify({
+    plan: {
+      title: "Plan With Links",
+      description: "Test object links",
+      exercises: [
+        {
+          id: "ex1", phase: "Phase 1", title: "Exercise",
+          description: "Has links", time_estimate: "30 min",
+          links: [
+            { url: "https://example.com", title: "Example" },
+            "https://plain-string.com"
+          ]
+        },
+      ]
+    }
+  }));
+  await page.click('#modalSave');
+  await page.waitForTimeout(500);
+
+  const hasError = await page.evaluate(() => {
+    // Check no JS errors by verifying the card rendered
+    return document.querySelector('.card-title')?.textContent === 'Plan With Links';
+  });
+  await assert('Study plan with object links renders without error', hasError);
+
+  const links = await page.$$eval('.sp-exercise a', els => els.map(e => e.href));
+  await assert('Both links rendered', links.length === 2);
+}
+
 async function testStudyPlanWhileCardVisible() {
   log('\n═══ Study Plan While Card Visible ═══');
   const cards = [makeCard({ id: 'sp1', title: 'Existing Card' })];
@@ -727,6 +766,7 @@ async function run() {
   await testDeleteCard();
   await testInbox();
   await testStudyPlan();
+  await testStudyPlanWithObjectLinks();
   await testStudyPlanWhileCardVisible();
   await testStudyPlanWhileLinkVisible();
   await testSearch();

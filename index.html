@@ -1851,7 +1851,11 @@ function renderTaskView(card) {
         currentPhase = ex.phase;
         phaseHeader = `<div class="sp-phase">${esc(ex.phase)}</div>`;
       }
-      const linksHtml = (ex.links || []).map(l => `<a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.replace(/^https?:\/\/(www\.)?/, '').split('/')[0])}</a>`).join(' ');
+      const linksHtml = (ex.links || []).map(l => {
+        const url = typeof l === 'string' ? l : (l.url || l.href || String(l));
+        const label = typeof l === 'object' && l.title ? l.title : url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+        return `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+      }).join(' ');
       const sourcesHtml = (ex.dataSources || []).map(s => `<span>${esc(s)}</span>`).join(', ');
       return `${phaseHeader}
         <div class="sp-exercise ${ex.done ? 'done' : ''}" id="sp-ex-${i}">
