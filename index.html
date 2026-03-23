@@ -1489,6 +1489,12 @@ function render() {
     document.getElementById('notesOverlay').classList.remove('open');
   }
 
+  // Clean up YouTube player when navigating away
+  if (window._ytPlayer) {
+    try { window._ytPlayer.destroy(); } catch {}
+    window._ytPlayer = null;
+  }
+
   const main = document.getElementById('main');
   const counter = document.getElementById('counter');
   const dots = document.getElementById('dots');

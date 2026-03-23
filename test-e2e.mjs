@@ -488,6 +488,46 @@ async function testNotesDrawer() {
   await assert('Notes saved to localStorage', saved === 'Updated notes content');
 }
 
+async function testTimestampButtonHiddenOnNonYoutube() {
+  log('\n═══ Timestamp Button Hidden on Non-YouTube ═══');
+
+  // Card 1: simulate having had a YouTube player active
+  // Card 2: a plain task card
+  const cards = [
+    makeCard({ id: 'ts1', type: 'link', title: 'YouTube Playlist', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLtest' }),
+    makeCard({ id: 'ts2', title: 'Plain Task', notes: 'No video here' }),
+  ];
+  await resetApp({ stack_cards: cards, stack_index: 0 });
+
+  // Simulate _ytPlayer being set (as if YouTube loaded)
+  await page.evaluate(() => { window._ytPlayer = { destroy: () => {} }; });
+
+  // Open notes on "YouTube" card — timestamp button should show
+  await page.evaluate(() => toggleNotes());
+  await page.waitForTimeout(300);
+  const shownOnYt = await page.$eval('#insertTimestampBtn', el => el.style.display !== 'none');
+  await assert('Timestamp button shown on YouTube card', shownOnYt);
+  await page.evaluate(() => toggleNotes());
+  await page.waitForTimeout(200);
+
+  // Navigate to plain task (render() should clear _ytPlayer)
+  await page.evaluate(() => next());
+  await page.waitForTimeout(300);
+
+  // Open notes on plain task — timestamp button should be hidden
+  await page.evaluate(() => toggleNotes());
+  await page.waitForTimeout(300);
+  const hiddenOnTask = await page.$eval('#insertTimestampBtn', el => el.style.display === 'none');
+  await assert('Timestamp button hidden on non-YouTube card', hiddenOnTask);
+
+  // Verify _ytPlayer was cleared
+  const playerCleared = await page.evaluate(() => window._ytPlayer === null);
+  await assert('YouTube player reference cleared', playerCleared);
+
+  await page.evaluate(() => toggleNotes());
+  await page.waitForTimeout(200);
+}
+
 async function testPomodoro() {
   log('\n═══ Pomodoro Timer ═══');
   const cards = [makeCard({ id: 'p1', title: 'Timer Test' })];
@@ -771,6 +811,7 @@ async function run() {
   await testStudyPlanWhileLinkVisible();
   await testSearch();
   await testNotesDrawer();
+  await testTimestampButtonHiddenOnNonYoutube();
   await testPomodoro();
   await testHeaderDrawerToggle();
   await testSidebarTabs();
