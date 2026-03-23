@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "start": "npx serve . -l 3000"
+    "start": "npx serve . -l 3000",
+    "test": "node test-e2e.mjs"
   },
   "dependencies": {
     "playwright": "^1.58.2"

@@ -1,5 +1,4 @@
 node_modules/
 test-results/
 CLAUDE.md
-test-e2e.mjs
 test-screenshot.mjs
