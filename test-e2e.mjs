@@ -750,6 +750,97 @@ async function testConvertToTask() {
   await assert('Open in new tab button shown', linkBtn !== null);
 }
 
+async function testConvertToTaskPreservesOtherCards() {
+  log('\n═══ Convert to Task Preserves Other Cards ═══');
+
+  // Simulate exact user scenario: have study plan + other cards, add a link, convert it
+  const studyPlanCard = makeCard({
+    id: 'sp_preserve', title: 'My Study Plan', type: 'task',
+    studyPlan: true,
+    exercises: [
+      { id: 'ex1', phase: 'Phase 1', title: 'Exercise One', description: 'Test', timeEstimate: '30 min', dataSources: [], links: [], done: false }
+    ]
+  });
+  const existingCards = [
+    makeCard({ id: 'existing1', title: 'Existing Task', tags: ['#work'] }),
+    studyPlanCard,
+    makeCard({ id: 'existing3', type: 'link', title: 'YouTube Playlist', url: 'https://youtube.com/playlist?list=PLtest' }),
+  ];
+  await resetApp({ stack_cards: existingCards, stack_index: 0 });
+
+  // Verify 3 cards
+  let cards = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards')));
+  await assert('Starts with 3 cards', cards.length === 3);
+
+  // Add a new link card via the modal
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'link');
+  await page.fill('#cardUrlInput', 'https://magazine.sebastianraschka.com/p/visual-attention-variants');
+  await page.fill('#cardTitleInput', 'Visual Attention Variants');
+  await page.click('#modalSave');
+  await page.waitForTimeout(500);
+
+  // Should now have 4 cards
+  cards = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards')));
+  await assert('Now has 4 cards after adding link', cards.length === 4);
+
+  // Verify study plan still exists
+  const hasPlan = cards.some(c => c.studyPlan === true);
+  await assert('Study plan still in stack after add', hasPlan);
+
+  // Convert the new link to task (simulating blocked iframe)
+  await page.evaluate(() => convertToTask());
+  await page.waitForTimeout(300);
+
+  // Verify ALL cards still exist
+  cards = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards')));
+  await assert('Still has 4 cards after convert', cards.length === 4);
+
+  const titles = cards.map(c => c.title);
+  await assert('Existing Task preserved', titles.includes('Existing Task'));
+  await assert('Study plan preserved after convert', cards.some(c => c.studyPlan === true));
+  await assert('YouTube playlist preserved', titles.includes('YouTube Playlist'));
+  await assert('Converted card exists', titles.includes('Visual Attention Variants'));
+  await assert('Converted card is now task type', cards.find(c => c.title === 'Visual Attention Variants').type === 'task');
+
+  // Verify data survives a full page reload
+  await page.reload();
+  await page.waitForTimeout(500);
+  cards = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards')));
+  await assert('All 4 cards survive reload', cards.length === 4);
+  await assert('Study plan survives reload', cards.some(c => c.studyPlan === true));
+}
+
+async function testAddCardPersistsImmediately() {
+  log('\n═══ Add Card Persists Immediately ═══');
+  await resetApp();
+
+  // Add a task card
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'task');
+  await page.fill('#cardTitleInput', 'Persist Check');
+  await page.click('#modalSave');
+  await page.waitForTimeout(300);
+
+  // Check localStorage BEFORE any other action
+  const cards = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards')));
+  await assert('Card persisted to localStorage immediately', cards.length === 1);
+  await assert('Card title correct in localStorage', cards[0].title === 'Persist Check');
+
+  // Add a link card
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'link');
+  await page.fill('#cardUrlInput', 'https://example.com');
+  await page.click('#modalSave');
+  await page.waitForTimeout(300);
+
+  const cards2 = await page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards')));
+  await assert('Link card also persisted immediately', cards2.length === 2);
+}
+
 async function testMultipleCardDots() {
   log('\n═══ Navigation Dots ═══');
   const cards = Array.from({ length: 5 }, (_, i) =>
@@ -821,6 +912,8 @@ async function run() {
   await testCardCentering();
   await testMobileLayout();
   await testConvertToTask();
+  await testConvertToTaskPreservesOtherCards();
+  await testAddCardPersistsImmediately();
   await testMultipleCardDots();
   await testLocalStoragePersistence();
 
