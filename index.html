@@ -1502,6 +1502,7 @@ function render() {
 
   applyStackFilter();
   const visible = getVisibleStack();
+  save();
 
   if (visible.length === 0) {
     document.getElementById('headerCardActions').innerHTML = '';
@@ -1549,8 +1550,6 @@ function render() {
   } else {
     renderTaskView(card);
   }
-
-  save();
 }
 
 function youtubeEmbedUrl(url) {
@@ -2120,6 +2119,7 @@ function moveCard(dir) {
   if (newRi < 0 || newRi >= stack.length) return;
   [stack[ri], stack[newRi]] = [stack[newRi], stack[ri]];
   if (!stackFilter) currentIndex = newRi;
+  save();
   render();
 }
 
