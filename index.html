@@ -2526,11 +2526,10 @@ function restoreArchived(folder, idx) {
   const bm = archive[folder]?.[idx];
   if (!bm) return;
 
-  stack.push({
-    id: uid(), type: bm.type || 'link', title: bm.title,
-    url: bm.url || '', tags: bm.tags || [], notes: bm.notes || '',
-    created: Date.now()
-  });
+  // Restore the original card with all its data (study plans, exercises, etc.)
+  const restored = { ...bm, modified: Date.now() };
+  delete restored.retired;
+  stack.push(restored);
   currentIndex = stack.length - 1;
 
   const bmId = bm.id;

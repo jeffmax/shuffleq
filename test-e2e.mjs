@@ -874,6 +874,251 @@ async function testLocalStoragePersistence() {
   await assert('Card persists after reload', title === 'Persist Test');
 }
 
+async function testFullUsageSession() {
+  log('\n═══ Full Usage Session (Integration) ═══');
+  await resetApp();
+
+  // Helper to get all card data from localStorage
+  async function getCards() {
+    return page.evaluate(() => JSON.parse(localStorage.getItem('stack_cards') || '[]'));
+  }
+  async function getInbox() {
+    return page.evaluate(() => JSON.parse(localStorage.getItem('stack_inbox') || '[]'));
+  }
+  async function getArchive() {
+    return page.evaluate(() => JSON.parse(localStorage.getItem('stack_bookmarks') || '{}'));
+  }
+  async function getCardIds() {
+    return (await getCards()).map(c => c.id);
+  }
+
+  // ── Step 1: Add a task card ──
+  log('  Step 1: Add task card');
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'task');
+  await page.fill('#cardTitleInput', 'Review ML Paper');
+  await page.fill('#cardNotesInput', 'Read sections 3 and 4 carefully');
+  await page.fill('#cardTagsInput', '#ml #reading');
+  await page.click('#modalSave');
+  await page.waitForTimeout(300);
+
+  let cards = await getCards();
+  await assert('Step 1: Task card saved', cards.length === 1);
+  const taskId = cards[0].id;
+  await assert('Step 1: Has valid ID', taskId && taskId.length > 0);
+  await assert('Step 1: Title correct', cards[0].title === 'Review ML Paper');
+  await assert('Step 1: Notes correct', cards[0].notes === 'Read sections 3 and 4 carefully');
+  await assert('Step 1: Tags correct', cards[0].tags.length === 2);
+
+  // ── Step 2: Add a study plan ──
+  log('  Step 2: Add study plan');
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'studyplan');
+  await page.waitForTimeout(200);
+  await page.fill('#studyPlanJsonInput', JSON.stringify({
+    plan: {
+      title: "Linear Algebra Fundamentals",
+      description: "Work through core LA concepts",
+      exercises: [
+        { id: "la1", phase: "Vectors", title: "Vector operations", description: "Add, subtract, scale", time_estimate: "1 hour" },
+        { id: "la2", phase: "Vectors", title: "Dot product", description: "Geometric interpretation", time_estimate: "1 hour" },
+        { id: "la3", phase: "Matrices", title: "Matrix multiplication", description: "Row-column method", time_estimate: "2 hours" },
+      ]
+    }
+  }));
+  await page.click('#modalSave');
+  await page.waitForTimeout(500);
+
+  cards = await getCards();
+  await assert('Step 2: Now 2 cards', cards.length === 2);
+  const planId = cards[1].id;
+  await assert('Step 2: Study plan has studyPlan flag', cards[1].studyPlan === true);
+  await assert('Step 2: Study plan has 3 exercises', cards[1].exercises.length === 3);
+  await assert('Step 2: Task card still intact', cards[0].id === taskId);
+
+  // ── Step 3: Add a link card ──
+  log('  Step 3: Add link card');
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'link');
+  await page.fill('#cardUrlInput', 'https://example.com/article');
+  await page.fill('#cardTitleInput', 'Good Article');
+  await page.fill('#cardTagsInput', '#reading');
+  await page.click('#modalSave');
+  await page.waitForTimeout(300);
+
+  cards = await getCards();
+  await assert('Step 3: Now 3 cards', cards.length === 3);
+  const linkId = cards[2].id;
+  await assert('Step 3: Link card has URL', cards[2].url === 'https://example.com/article');
+  await assert('Step 3: Previous cards intact', cards[0].id === taskId && cards[1].id === planId);
+
+  // ── Step 4: Navigate and verify all cards accessible ──
+  log('  Step 4: Navigate between cards');
+  await page.evaluate(() => { currentIndex = 0; render(); });
+  await page.waitForTimeout(300);
+  let title = await page.$eval('.card-title', el => el.textContent);
+  await assert('Step 4: Card 1 title correct', title === 'Review ML Paper');
+
+  await page.evaluate(() => next());
+  await page.waitForTimeout(300);
+  title = await page.$eval('.card-title', el => el.textContent);
+  await assert('Step 4: Card 2 (study plan) accessible', title === 'Linear Algebra Fundamentals');
+
+  await page.evaluate(() => next());
+  await page.waitForTimeout(300);
+  // Link card renders iframe, check counter instead
+  const counter = await page.$eval('#counter', el => el.textContent);
+  await assert('Step 4: On card 3', counter.trim() === '3 / 3');
+
+  // ── Step 5: Convert link to task ──
+  log('  Step 5: Convert link to task');
+  await page.evaluate(() => convertToTask());
+  await page.waitForTimeout(300);
+
+  cards = await getCards();
+  await assert('Step 5: Still 3 cards', cards.length === 3);
+  await assert('Step 5: Link converted to task', cards[2].type === 'task');
+  await assert('Step 5: URL preserved', cards[2].url === 'https://example.com/article');
+  await assert('Step 5: Study plan still intact', cards[1].studyPlan === true && cards[1].exercises.length === 3);
+  await assert('Step 5: All IDs unchanged', cards[0].id === taskId && cards[1].id === planId && cards[2].id === linkId);
+
+  // ── Step 6: Edit a card title ──
+  log('  Step 6: Edit card');
+  await page.evaluate(() => { currentIndex = 0; render(); });
+  await page.waitForTimeout(300);
+  await page.keyboard.press('e');
+  await page.waitForTimeout(300);
+  await page.fill('#cardTitleInput', 'Review ML Paper (Updated)');
+  await page.click('#modalSave');
+  await page.waitForTimeout(300);
+
+  cards = await getCards();
+  await assert('Step 6: Title updated', cards[0].title === 'Review ML Paper (Updated)');
+  await assert('Step 6: Same ID after edit', cards[0].id === taskId);
+  await assert('Step 6: Other cards untouched', cards.length === 3);
+
+  // ── Step 7: Archive the converted link card ──
+  log('  Step 7: Archive card');
+  // Navigate to the converted link card by finding its index
+  const linkIdx = (await getCards()).findIndex(c => c.id === linkId);
+  await page.evaluate((idx) => { currentIndex = idx; render(); }, linkIdx);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => retireCard());
+  await page.waitForTimeout(300);
+
+  cards = await getCards();
+  const archive = await getArchive();
+  await assert('Step 7: Down to 2 cards', cards.length === 2);
+  await assert('Step 7: Archive has entry', Object.values(archive).flat().length === 1);
+  await assert('Step 7: Task and study plan remain', cards.some(c => c.id === taskId) && cards.some(c => c.id === planId));
+
+  // ── Step 8: Add inbox item and promote ──
+  log('  Step 8: Inbox workflow');
+  await page.keyboard.press('t');
+  await page.waitForTimeout(300);
+  const addInput = await page.$('#quickTodoInput');
+  if (addInput) {
+    await addInput.fill('Quick todo item');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+  }
+
+  let inbox = await getInbox();
+  if (inbox.length > 0) {
+    const inboxId = inbox[0].id;
+    // Promote to stack
+    const promoteBtn = await page.$('.todo-actions .todo-action-btn[title="Move to stack"]');
+    if (promoteBtn) {
+      await promoteBtn.click();
+      await page.waitForTimeout(300);
+    }
+
+    cards = await getCards();
+    inbox = await getInbox();
+    await assert('Step 8: Inbox item promoted to stack', cards.length === 3);
+    await assert('Step 8: Inbox now empty', inbox.length === 0);
+    await assert('Step 8: Original cards still intact', cards.some(c => c.id === taskId) && cards.some(c => c.id === planId));
+  }
+  await page.click('#closeSidebar');
+  await page.waitForTimeout(200);
+
+  // ── Step 9: Restore from archive ──
+  log('  Step 9: Restore archived card');
+  await page.evaluate(() => toggleSidebar('archive'));
+  await page.waitForTimeout(400);
+  const restoreBtn = await page.$('.bm-restore-btn');
+  if (restoreBtn) {
+    await restoreBtn.click();
+    await page.waitForTimeout(300);
+  }
+
+  cards = await getCards();
+  await assert('Step 9: Archived card restored', cards.some(c => c.id === linkId));
+  const archiveAfter = await getArchive();
+  const archiveCount = Object.values(archiveAfter).flat().length;
+  await assert('Step 9: Archive now empty', archiveCount === 0);
+  await page.evaluate(() => toggleSidebar());
+  await page.waitForTimeout(200);
+
+  // ── Step 10: Delete a card ──
+  log('  Step 10: Delete card');
+  const beforeDelete = await getCards();
+  const deleteCount = beforeDelete.length;
+  await page.evaluate(() => { currentIndex = 0; render(); });
+  await page.waitForTimeout(200);
+  page.once('dialog', dialog => dialog.accept());
+  await page.evaluate(() => removeCard());
+  await page.waitForTimeout(300);
+
+  cards = await getCards();
+  await assert('Step 10: One fewer card', cards.length === deleteCount - 1);
+  await assert('Step 10: Study plan survived delete of other card', cards.some(c => c.id === planId));
+
+  // ── Step 11: Full reload — verify everything persisted ──
+  log('  Step 11: Full reload persistence check');
+  const beforeReload = await getCards();
+  const beforeReloadIds = beforeReload.map(c => c.id).sort();
+  const beforeReloadInbox = await getInbox();
+  const beforeReloadArchive = await getArchive();
+
+  await page.reload();
+  await page.waitForTimeout(500);
+
+  const afterReload = await getCards();
+  const afterReloadIds = afterReload.map(c => c.id).sort();
+  await assert('Step 11: Same card count after reload', afterReload.length === beforeReload.length);
+  await assert('Step 11: Same card IDs after reload', JSON.stringify(afterReloadIds) === JSON.stringify(beforeReloadIds));
+  await assert('Step 11: Study plan exercises intact after reload',
+    afterReload.find(c => c.id === planId)?.exercises?.length === 3);
+
+  // ── Step 12: Second reload — IDs must be stable ──
+  log('  Step 12: Second reload — ID stability');
+  await page.reload();
+  await page.waitForTimeout(500);
+
+  const afterSecondReload = await getCards();
+  const secondIds = afterSecondReload.map(c => c.id).sort();
+  await assert('Step 12: IDs stable across multiple reloads', JSON.stringify(secondIds) === JSON.stringify(beforeReloadIds));
+
+  // ── Step 13: Add another card after reloads — no state corruption ──
+  log('  Step 13: Add card after reloads');
+  const countBeforeAdd = afterSecondReload.length;
+  await page.click('#addBtn');
+  await page.waitForTimeout(200);
+  await page.selectOption('#cardType', 'task');
+  await page.fill('#cardTitleInput', 'Post-Reload Card');
+  await page.click('#modalSave');
+  await page.waitForTimeout(300);
+
+  cards = await getCards();
+  await assert('Step 13: Card added after reloads', cards.length === countBeforeAdd + 1);
+  await assert('Step 13: All previous cards still present',
+    beforeReloadIds.every(id => cards.some(c => c.id === id)));
+}
+
 // ─── RUN ALL TESTS ───
 
 async function run() {
@@ -916,6 +1161,7 @@ async function run() {
   await testAddCardPersistsImmediately();
   await testMultipleCardDots();
   await testLocalStoragePersistence();
+  await testFullUsageSession();
 
   await browser.close();
 
