@@ -976,8 +976,8 @@
     </div>
     <button class="icon-btn" id="notesBtn" onclick="toggleNotes()" title="Notes (Shift+N)" style="font-size:1.1rem;">&#9998;</button>
     <button class="icon-btn" id="addBtn" title="Add card (N)">+</button>
-    <button class="icon-btn" id="todoBtn" title="Sidebar (T)">&#9776;</button>
     <button class="icon-btn" id="helpBtn" onclick="toggleHelp()" title="Help (?)" style="font-size:0.9rem;">?</button>
+    <button class="icon-btn" id="todoBtn" title="Sidebar (T)">&#9776;</button>
   </div>
 
 </header>
@@ -2103,9 +2103,12 @@ function editCard() { openModal(true); }
 function removeCard() {
   const ri = realIndex();
   if (ri === -1) return;
+  const card = stack[ri];
+  if (!confirm(`Delete "${card.title}"?`)) return;
   stack.splice(ri, 1);
   const visible = getVisibleStack();
   if (currentIndex >= visible.length) currentIndex = Math.max(0, visible.length - 1);
+  save();
   render();
   renderTodos();
 }
